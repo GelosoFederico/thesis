@@ -6,8 +6,28 @@ import pandapower.networks
 import numpy as np
 import scipy.linalg
 import cvxpy as cp
+import matplotlib.pyplot
 
 # TODO change all np.transpose to matrix.T
+
+def get_b_matrix_from_network(network):
+    M = len(network.res_bus['p_mw'])
+    print(M)
+    data_for_B = network.line[['from_bus','to_bus','x_ohm_per_km', 'length_km']]
+    B_real = np.zeros((M,M))
+    for row in data_for_B.iterrows():
+        m = network.bus.index.get_loc(int(row[1]['from_bus']))
+        k = network.bus.index.get_loc(int(row[1]['to_bus']))
+        if m != k:
+            b_mk = -1/(row[1]['x_ohm_per_km'] * row[1]['length_km'])
+            B_real[m,k] = b_mk
+            B_real[k,m] = b_mk
+            B_real[m,m] -= b_mk
+            B_real[k,k] -= b_mk
+    return B_real
+
+def get_U_matrix(M):
+    return np.concatenate((np.array([-np.ones(M-1)]), np.eye(M-1)))
 
 def frobenius_norm_2(matrix):
     '''
@@ -139,10 +159,99 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sig
 
 
 
+def GrotasAlgorithm(observations, state_covariance_matrix, method='two_phase_topology'):
+    # state_covariance_matrix is E_theta_tilde
+    M = observations.shape[1]
+    N = observations.shape[0]
+    U = get_U_matrix(M)
+    state_covariance_matrix_tilde = U.T @ state_covariance_matrix @ U
+
+    def step_1(observations, M, N):
+        # Step 1) Remove sample mean of all observations
+        avg = np.zeros(M)
+        for time in observations:
+            avg += time
+        avg = avg/N
+        return observations - np.tile(np.array(avg),(N,1))
+    
+    def step_2(measurements, M, N):
+        # Step 2) Get sample covariance matrix
+        E_p = np.zeros((M,M))
+        for measurement in measurements:
+            meas_formatted = np.array([measurement])
+            E_p += meas_formatted.T @ meas_formatted
+        return E_p / N
+
+    def step_3_4(E_p):
+        # Step 3-4) Get eigenvalues and estimate noise variance with the smallest eigenvalue
+        eigenvalues = np.linalg.eig(E_p)[0]
+        sigma_sqr_noise_approx = eigenvalues.min()
+        return np.sqrt(sigma_sqr_noise_approx)
+
+    def step_5_6(N,M,E_theta_tilde,E_p,sigma_noise_approx, method):
+        U = get_U_matrix(M)
+        # Step 5) Get \hat(\tilde(B)). The paper explains two methods to approximate maximum likelihood B
+        if method == 'two_phase_topology':
+            B_approx = two_phase_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
+        else:
+            B_tilde_approx = augmented_lagrangian_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
+            # Step 6) Get \hat(B) from \hat(\tilde(B))
+            B_approx = U @ B_tilde_approx @ U.T
+        return B_approx
+    
+    def step_7(M, B_approx):
+        # Step 7) Impose sparsity with a threshold
+        sparsity_value = 2/M
+        threshold = np.diag(B_approx).min() * sparsity_value
+        return np.where(np.abs(B_approx) < threshold, 0, B_approx)
+
+    def step_8(B, E_theta, sigma_noise_approx, measurements, M):
+        theta_approx = np.zeros_like(measurements)
+        for i in range(0, measurements.shape[0]):
+            theta_approx[i,:] = E_theta @ B @ np.linalg.pinv(B.T @ E_theta @ B + sigma_noise_approx * np.eye(M)) @ measurements[i]
+        return theta_approx
+
+    observations_no_mean = step_1(observations, M, N)
+    sample_covariance_matrix = step_2(observations_no_mean, M, N) # aka E_p
+    sigma_noise_estimation = step_3_4(sample_covariance_matrix)
+    B_estimation = step_5_6(N, M, state_covariance_matrix_tilde, sample_covariance_matrix, sigma_noise_estimation, method)
+    B_estimation = step_7(M, B_estimation)
+    theta_estimation = step_8(B_estimation, state_covariance_matrix, sigma_noise_estimation, observations_no_mean, M)
+    return B_estimation, theta_estimation
+
+
 
 net = pandapower.networks.case4gs()
+pandapower.runpp(net)
+N = 1000
+M = len(net.res_bus['p_mw'])
+noise_sigma = 0.01
+theta_variance = 3.004
 
-use_two_phase_topology = True
+B_real = get_b_matrix_from_network(net)
+
+theta_created = np.random.default_rng().normal(0, np.sqrt(theta_variance), (M,N))
+noise =  np.random.default_rng().normal(0, noise_sigma, (M,N))
+observations = ((B_real @ theta_created) + noise).T
+
+# We assume all theta are independent
+E_theta = np.diag(np.full(M, theta_variance))
+
+U = get_U_matrix(M)
+E_theta_tilde = U.T @ E_theta @ U
+
+print(f"{B_real=}")
+print(f"{theta_created=}")
+print(f"{noise=}")
+print(f"{observations=}")
+print(f"{E_theta=}")
+B, theta = GrotasAlgorithm(observations, E_theta, 'two_phase_topology')
+
+matplotlib.pyplot.matshow(B)
+matplotlib.pyplot.show()
+matplotlib.pyplot.matshow(B_real)
+matplotlib.pyplot.show()
+
 
 # Get the required variables from the net: p[n] (active power injected), E(\tilde(theta)) (state covariance matrix)
 
@@ -150,137 +259,134 @@ use_two_phase_topology = True
 # We have the exact values, so we need to add the measurement noise
 
 # net.bus contains all buses
-N = 1000
-noise_sigma = 0.01
 
-pandapower.runpp(net)
-actual_p = net.res_bus['p_mw']
-M = len(actual_p)
-actual_p = np.tile(np.array(actual_p),(N,1))
-real_theta = np.tile(np.array(net.res_bus['va_degree']),(N,1))
+# actual_p = net.res_bus['p_mw']
+# M = len(actual_p)
+# actual_p = np.tile(np.array(actual_p),(N,1))
+# real_theta = np.tile(np.array(net.res_bus['va_degree']),(N,1))
 
 
-# Get real B matrix
-data_for_B = net.line[['from_bus','to_bus','x_ohm_per_km', 'length_km']]
-B_real = np.zeros((M,M))
-for row in data_for_B.iterrows():
-    m = net.bus.index.get_loc(int(row[1]['from_bus']))
-    k = net.bus.index.get_loc(int(row[1]['to_bus']))
-    if m != k:
-        b_mk = -1/(row[1]['x_ohm_per_km'] * row[1]['length_km'])
-        B_real[m,k] = b_mk
-        B_real[k,m] = b_mk
-        B_real[m,m] -= b_mk
-        B_real[k,k] -= b_mk
+# # Get real B matrix
+# data_for_B = net.line[['from_bus','to_bus','x_ohm_per_km', 'length_km']]
+# B_real = np.zeros((M,M))
+# for row in data_for_B.iterrows():
+#     m = net.bus.index.get_loc(int(row[1]['from_bus']))
+#     k = net.bus.index.get_loc(int(row[1]['to_bus']))
+#     if m != k:
+#         b_mk = -1/(row[1]['x_ohm_per_km'] * row[1]['length_km'])
+#         B_real[m,k] = b_mk
+#         B_real[k,m] = b_mk
+#         B_real[m,m] -= b_mk
+#         B_real[k,k] -= b_mk
 
-print("real B")
-print(B_real)
+# print("real B")
+# print(B_real)
 
-noise =  np.random.default_rng().normal(0, noise_sigma, actual_p.shape)
-# I would normally use the actual_p as measurements, but lets test to make them as is
-# measurements = actual_p + noise
-theta_variance = 3.004
-theta_created =  np.random.default_rng().normal(0, np.sqrt(theta_variance), actual_p.shape)
-print(theta_created)
-measurements = (B_real @ theta_created.T).T + noise
+# noise =  np.random.default_rng().normal(0, noise_sigma, actual_p.shape)
+# # I would normally use the actual_p as measurements, but lets test to make them as is
+# # measurements = actual_p + noise
+# theta_variance = 3.004
+# theta_created =  np.random.default_rng().normal(0, np.sqrt(theta_variance), actual_p.shape)
+# print(theta_created)
+# measurements = (B_real @ theta_created.T).T + noise
 
-print("measurements")
-print(measurements)
+# print("measurements")
+# print(measurements)
 
-# E(\tilde(theta)) = U(T) E(theta) U
-# Where U = [-1(T)_(M-1) I_(M-1) ]
+# # E(\tilde(theta)) = U(T) E(theta) U
+# # Where U = [-1(T)_(M-1) I_(M-1) ]
 
-# I will assume they are all independent
+# # I will assume they are all independent
 
-E_theta = np.diag(np.full(M, theta_variance))
-print("E_theta")
-print(E_theta)
+# E_theta = np.diag(np.full(M, theta_variance))
+# print("E_theta")
+# print(E_theta)
 
-U = np.concatenate((np.array([-np.ones(M-1)]), np.eye(M-1)))
-E_theta_tilde = U.T @ E_theta @ U
+# U = np.concatenate((np.array([-np.ones(M-1)]), np.eye(M-1)))
+# E_theta_tilde = U.T @ E_theta @ U
 
-print("E_theta_tilde")
-print(E_theta_tilde)
+# print("E_theta_tilde")
+# print(E_theta_tilde)
 
-# Step 1) Remove sample mean of all measurements
+# # Step 1) Remove sample mean of all measurements
 
-# TODO investigate how to do this correctly in numpy
-avg = np.zeros(M)
-for time in measurements:
-    avg += time
-avg = avg/N
-measurements_no_mean = measurements - np.tile(np.array(avg),(N,1))
-print("measurements2")
-print(measurements_no_mean)
+# # TODO investigate how to do this correctly in numpy
+# avg = np.zeros(M)
+# for time in measurements:
+#     avg += time
+# avg = avg/N
+# measurements_no_mean = measurements - np.tile(np.array(avg),(N,1))
+# print("measurements2")
+# print(measurements_no_mean)
 
-# Step 2) Get sample covariance matrix
+# # Step 2) Get sample covariance matrix
 
-E_p = np.zeros((M,M))
-for measurement in measurements_no_mean:
-    meas_formatted = np.array([measurement])
-    E_p += meas_formatted.T @ meas_formatted
-E_p = E_p / N
-print("E_p estimation")
-print(E_p)
+# E_p = np.zeros((M,M))
+# for measurement in measurements_no_mean:
+#     meas_formatted = np.array([measurement])
+#     E_p += meas_formatted.T @ meas_formatted
+# E_p = E_p / N
+# print("E_p estimation")
+# print(E_p)
 
-# This real sigma_p assumes that the noise's variance is much bigger than theta's variance 
-real_E_p = np.zeros_like(E_p)
-np.fill_diagonal(real_E_p, noise_sigma**2)
-print("real E_p")
-print(real_E_p)
+# # This real sigma_p assumes that the noise's variance is much bigger than theta's variance 
+# real_E_p = np.zeros_like(E_p)
+# np.fill_diagonal(real_E_p, noise_sigma**2)
+# print("real E_p")
+# print(real_E_p)
 
-# Step 3-4) Get eigenvalues and estimate noise variance with the smallest eigenvalue
+# # Step 3-4) Get eigenvalues and estimate noise variance with the smallest eigenvalue
 
-eigenvalues = np.linalg.eig(E_p)[0]
-sigma_sqr_noise_approx = eigenvalues.min()
-sigma_noise_approx = np.sqrt(sigma_sqr_noise_approx)
+# eigenvalues = np.linalg.eig(E_p)[0]
+# sigma_sqr_noise_approx = eigenvalues.min()
+# sigma_noise_approx = np.sqrt(sigma_sqr_noise_approx)
 
-print("estimated noise variance")
-print(sigma_sqr_noise_approx)
-print("real noise variance")
-print(noise_sigma**2)
+# print("estimated noise variance")
+# print(sigma_sqr_noise_approx)
+# print("real noise variance")
+# print(noise_sigma**2)
 
-# Step 5) Get \hat(\tilde(B)). The paper explains two methods to approximate maximum likelihood B
+# # Step 5) Get \hat(\tilde(B)). The paper explains two methods to approximate maximum likelihood B
 
-if use_two_phase_topology:
-    B_approx = two_phase_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
-else:
-    B_tilde_approx = augmented_lagrangian_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
-    # Step 6) Get \hat(B) from \hat(\tilde(B))
-    B_approx = U @ B_tilde_approx @ U.T
-print("B_approx")
-print(B_approx)
-print("B_real")
-print(B_real)
+# if use_two_phase_topology:
+#     B_approx = two_phase_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
+# else:
+#     B_tilde_approx = augmented_lagrangian_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
+#     # Step 6) Get \hat(B) from \hat(\tilde(B))
+#     B_approx = U @ B_tilde_approx @ U.T
+# print("B_approx")
+# print(B_approx)
+# print("B_real")
+# print(B_real)
 
 
 
-# Step 7) Impose sparsity with a threshold
-sparsity_value = 2/M
-threshold = np.diag(B_approx).min() * sparsity_value
-B_approx = np.where(np.abs(B_approx) < threshold, 0, B_approx)
+# # Step 7) Impose sparsity with a threshold
+# sparsity_value = 2/M
+# threshold = np.diag(B_approx).min() * sparsity_value
+# B_approx = np.where(np.abs(B_approx) < threshold, 0, B_approx)
 
-print("B_approx with sparsity")
-print(B_approx)
+# print("B_approx with sparsity")
+# print(B_approx)
 
-# Step 8) Evaluate theta
+# # Step 8) Evaluate theta
 
-theta_approx = np.zeros_like(measurements_no_mean)
-for i in range(0, measurements_no_mean.shape[0]):
-    theta_approx[i,:] = E_theta @ B_approx @ np.linalg.pinv(np.transpose(B_approx) @ E_theta @ B_approx + sigma_noise_approx * np.eye(M)) @ measurements[i]
-print("theta_approx")
-print(theta_approx)
+# theta_approx = np.zeros_like(measurements_no_mean)
+# for i in range(0, measurements_no_mean.shape[0]):
+#     theta_approx[i,:] = E_theta @ B_approx @ np.linalg.pinv(np.transpose(B_approx) @ E_theta @ B_approx + sigma_noise_approx * np.eye(M)) @ measurements[i]
+# print("theta_approx")
+# print(theta_approx)
 
-print("theta_real")
-print(real_theta)
+# print("theta_real")
+# print(real_theta)
 
-# theta from equation 11, oracle estimator
-oracle_theta = E_theta @ B_real @ np.linalg.pinv(B_real.T @ E_theta @ B_real + noise_sigma * np.eye(M)) @ measurements.T
-print("oracle_theta")
-print(oracle_theta.T)
+# # theta from equation 11, oracle estimator
+# oracle_theta = E_theta @ B_real @ np.linalg.pinv(B_real.T @ E_theta @ B_real + noise_sigma * np.eye(M)) @ measurements.T
+# print("oracle_theta")
+# print(oracle_theta.T)
 
-theta_calculated = B_real @ measurements.T
-print("theta_calculated")
-print(theta_calculated.T)
+# theta_calculated = B_real @ measurements.T
+# print("theta_calculated")
+# print(theta_calculated.T)
 
 
