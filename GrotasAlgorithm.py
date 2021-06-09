@@ -10,6 +10,57 @@ import matplotlib.pyplot
 
 # TODO change all np.transpose to matrix.T
 
+def MSE_matrix(matrix_real, matrix_est):
+    diff_matrix = matrix_real - matrix_est
+    diff_sq = diff_matrix @ diff_matrix.T
+    return np.average(diff_sq)
+
+def stack_matrix(matrix):
+    out_vector = np.array([])
+    for column in matrix.T:
+        out_vector = np.append(out_vector, column)
+    return out_vector
+
+
+def cramer_rao_bound(M, B_til_est, sigma_sqr, sigma_p, sigma_theta_tilde, N):
+    def psi_vector(M, k, l):
+        constant = 1 if k==l else 0.5
+        ek = el = np.zeros((M-1,1))
+        ek[k,0] = 1
+        el[l,0] = 1
+        # Ek,l = ek * el.T + el * ek.T
+        # TODO check if there is a numpy function for stacking
+        stack = stack_matrix(ek @ el.T + el @ ek.T)
+        return constant * stack
+
+
+    # B_til_est is a square matrix R^(M-1,M-1)
+    alpha = np.zeros((M*(M-1)//2 + 1 ))
+    filled = 0
+    for i in range(0, M-1):
+        alpha[filled:filled+(M-i-1)] = B_til_est[i:M,i]
+        filled += (M-i-1)
+    alpha[M*(M-1)//2] = sigma_sqr
+
+    U = get_U_matrix(M)
+    sigma_p_tilde =  U.T @ sigma_p @ U 
+    sigma_p_tilde_inv = np.linalg.inv(sigma_p_tilde)
+    Q = np.kron(sigma_p_tilde_inv, sigma_p_tilde_inv)
+    K = np.kron(B_til_est @ sigma_theta_tilde, np.eye(M-1)) + np.kron(np.eye(M-1), B_til_est @ sigma_theta_tilde)
+    K_inv = np.linalg.inv(K)
+
+    U_pseudinv = np.linalg.pinv(U)
+    final_col = K_inv @ stack_matrix(U_pseudinv @ U_pseudinv.T)
+
+    Psi = np.zeros(((M-1)**2, M*(M-1)//2 + 1))
+    next_col = 0
+    for k in range(0, M-1):
+        for l in range(k, M-1):
+            Psi[:, next_col] = psi_vector(M, k, l)
+            next_col += 1
+    Psi[:,M*(M-1)//2] = final_col
+    return np.linalg.pinv(Psi.T @ K.T @ Q @ K @ Psi) * 2 / N
+
 def get_b_matrix_from_network(network):
     M = len(network.res_bus['p_mw'])
     print(M)
@@ -65,7 +116,7 @@ def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, s
 
 def two_phase_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sigma_noise_approx):
     # Step 1) Get reduced sample covariance matrix
-    sigma_p_tilde =  np.transpose(U) @ sigma_p @ U 
+    sigma_p_tilde =  U.T @ sigma_p @ U 
 
     # Step 2) Get optimal solution
     print("sigma approx " + str(sigma_noise_approx))
@@ -217,7 +268,7 @@ def GrotasAlgorithm(observations, state_covariance_matrix, method='two_phase_top
     B_estimation = step_5_6(N, M, state_covariance_matrix_tilde, sample_covariance_matrix, sigma_noise_estimation, method)
     B_estimation = step_7(M, B_estimation)
     theta_estimation = step_8(B_estimation, state_covariance_matrix, sigma_noise_estimation, observations_no_mean, M)
-    return B_estimation, theta_estimation
+    return B_estimation, theta_estimation, sigma_noise_estimation, sample_covariance_matrix
 
 
 
@@ -245,7 +296,13 @@ print(f"{theta_created=}")
 print(f"{noise=}")
 print(f"{observations=}")
 print(f"{E_theta=}")
-B, theta = GrotasAlgorithm(observations, E_theta, 'two_phase_topology')
+B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, E_theta, 'two_phase_topology')
+MSE_matrix(B_real, B)
+
+B_tilde = U.T @ B @ U
+CR_bound = cramer_rao_bound(M, B_tilde, sigma_est**2, sigma_p, E_theta_tilde, N)
+
+print(f"{CR_bound=}")
 
 matplotlib.pyplot.matshow(B)
 matplotlib.pyplot.show()
