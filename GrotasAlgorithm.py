@@ -12,8 +12,7 @@ import matplotlib.pyplot
 
 def MSE_matrix(matrix_real, matrix_est):
     diff_matrix = matrix_real - matrix_est
-    diff_sq = diff_matrix @ diff_matrix.T
-    return np.average(diff_sq)
+    return np.trace(diff_matrix @ diff_matrix.T)
 
 def stack_matrix(matrix):
     out_vector = np.array([])
@@ -59,11 +58,10 @@ def cramer_rao_bound(M, B_til_est, sigma_sqr, sigma_p, sigma_theta_tilde, N):
             Psi[:, next_col] = psi_vector(M, k, l)
             next_col += 1
     Psi[:,M*(M-1)//2] = final_col
-    return np.linalg.pinv(Psi.T @ K.T @ Q @ K @ Psi) * 2 / N
+    return np.trace(np.linalg.pinv(Psi.T @ K.T @ Q @ K @ Psi) * 2 / N)
 
 def get_b_matrix_from_network(network):
     M = len(network.res_bus['p_mw'])
-    print(M)
     data_for_B = network.line[['from_bus','to_bus','x_ohm_per_km', 'length_km']]
     B_real = np.zeros((M,M))
     for row in data_for_B.iterrows():
@@ -75,6 +73,24 @@ def get_b_matrix_from_network(network):
             B_real[k,m] = b_mk
             B_real[m,m] -= b_mk
             B_real[k,k] -= b_mk
+    for row in network.trafo.iterrows():
+        # From Monticelli 4.7, transformer value should be akm * xkm^-1
+        # From pandapower documentation (https://pandapower.readthedocs.io/en/v2.6.0/elements/trafo.html), xkm is
+        # sqrt(z^2 - r^2) where alpha = net.sn_mva/sn_mva  z = vk_percent*alpha/100 and r = vkr_percent*alpha/100
+        # b = -1/x
+        ratio = row[1]['vn_hv_kv'] / row[1]['vn_lv_kv']
+        m = network.bus.index.get_loc(int(row[1]['hv_bus']))
+        k = network.bus.index.get_loc(int(row[1]['lv_bus']))
+        r = row[1]['vkr_percent'] * network.sn_mva / row[1]['sn_mva'] / 100
+        z = row[1]['vk_percent'] * network.sn_mva / row[1]['sn_mva'] / 100
+        x_mk = ratio * np.sqrt(z**2 - r**2)
+        b_mk = -1 / x_mk
+        if m != k:
+            B_real[m,k] = b_mk
+            B_real[k,m] = b_mk
+            B_real[m,m] -= b_mk
+            B_real[k,k] -= b_mk
+
     return B_real
 
 def get_U_matrix(M):
@@ -272,7 +288,7 @@ def GrotasAlgorithm(observations, state_covariance_matrix, method='two_phase_top
 
 
 
-net = pandapower.networks.case4gs()
+net = pandapower.networks.case14()
 pandapower.runpp(net)
 N = 1000
 M = len(net.res_bus['p_mw'])
