@@ -41,9 +41,6 @@ def F_score(mat1, mat2):
     false_negatives = (negative_mask1 == positive_mask2) * 1
     fn = np.sum(false_negatives)
 
-
-    print(adj_mat1)
-    print(adj_mat2)
     return 2*tp / (2*tp + fp + fn)
 
 def cramer_rao_bound(M, B_til_est, sigma_sqr, sigma_p, sigma_theta_tilde, N):

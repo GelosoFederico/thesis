@@ -44,7 +44,7 @@ for SNR in range_SNR:
         B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, sigma_theta, 'two_phase_topology')
         # B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, sigma_theta, 'augmented_lagrangian')
         MSE = MSE_matrix(B_real, B)
-        fs = F_score(B_real, B)
+        fs = F_score(B, B_real)
         print(f"{fs=}")
         print("B_found")
         matprint(B)
