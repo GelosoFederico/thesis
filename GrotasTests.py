@@ -70,21 +70,13 @@ for SNR in range_SNR:
             "MSE": CRB,
         })
 
-MSE_two_phase = filter(lambda x: x['method']=='two_phase_topology', MSE_tests)
-MSE_two_phase_for_plot = []
+MSE_two_phase = [x for x in MSE_tests if x['method']=='two_phase_topology']
 
-# TODO do this with map
-fscore_for_plot = []
-for test in MSE_two_phase:
-    MSE_two_phase_for_plot.append(test['MSE'])
-    fscore_for_plot.append(test['F_score'])
+MSE_two_phase_for_plot = [x['MSE'] for x in MSE_two_phase]
+fscore_for_plot = [x['F_score'] for x in MSE_two_phase]
 
-CRBs = filter(lambda x: x['method']=='cramer_rao_bound', MSE_tests)
-CRBs_for_plot = []
-
-# TODO do this with map
-for test in CRBs:
-    CRBs_for_plot.append(test['MSE'])
+CRBs = [x for x in MSE_tests if x['method']=='cramer_rao_bound']
+CRBs_for_plot = [x['MSE'] for x in CRBs]
 
 
 import matplotlib.pyplot
