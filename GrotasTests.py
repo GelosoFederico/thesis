@@ -29,8 +29,8 @@ def get_observations(N, SNR, c, B):
 net = pandapower.networks.case14()
 pandapower.runpp(net)
 MSE_tests = []
-B_real = get_b_matrix_from_network(net)
-B_real = IEEE14_b_matrix()
+B_real, A = get_b_matrix_from_network(net)
+B_real, A = IEEE14_b_matrix()
 print("B_Real_tilde")
 # U = get_U_matrix(B_real.shape[0])
 B_real_tilde = B_real[1:,1:]

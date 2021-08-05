@@ -6,16 +6,11 @@ import pandapower.networks
 import numpy as np
 import scipy.linalg
 import cvxpy as cp
-import matplotlib.pyplot
 from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 
 # TODO change all np.transpose to matrix.T
-
-def MSE_matrix(matrix_real, matrix_est):
-    diff_matrix = matrix_real - matrix_est
-    return np.trace(diff_matrix @ diff_matrix.T)
 
 def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx, U):
     U_pseudinv = np.linalg.pinv(U)
