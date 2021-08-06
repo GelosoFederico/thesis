@@ -1,5 +1,25 @@
 import numpy as np
 from utils import get_U_matrix
+import scipy.linalg
+
+def get_observations(N, SNR, c, B):
+    M = B.shape[0]
+    # sigma_theta = c**2*I_M
+    # SNR = 10 log(1/sigma**2 * Tr{B_tilde * sigma_theta_tilde * B_tilde})
+    # sigma ** 2 = Tr{B_tilde * sigma_theta_tilde * B_tilde} / 10 ^ (SNR/10)
+    U = get_U_matrix(M)
+    sigma_theta = c**2 * np.eye(M)
+    sigma_theta_tilde = U.T @ sigma_theta @ U
+    B_tilde = B[1:M, 1:M]
+    
+    noise_sigma = np.trace(B_tilde @ sigma_theta_tilde @ B_tilde) / (10**(SNR/10))
+
+    # TODO send distribution as param
+    theta_created = np.random.default_rng().normal(0, c, (M,N))
+    noise =  np.random.default_rng().normal(0, noise_sigma, (M,N)) 
+    return ((B @ theta_created) + noise).T, sigma_theta
+
+
 
 def stack_matrix(matrix):
     out_vector = np.array([])
