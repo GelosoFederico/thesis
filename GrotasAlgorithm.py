@@ -12,8 +12,9 @@ from simulations import F_score, cramer_rao_bound
 
 # TODO change all np.transpose to matrix.T
 
-def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx, U):
+def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sigma_noise_approx, U):
     U_pseudinv = np.linalg.pinv(U)
+    sigma_tilde_p_hat = U_pseudinv @ sigma_p_hat @ U_pseudinv.T
 
     # one way to get square root
     # TODO analize if the square root algorithm used here is useful
@@ -26,7 +27,7 @@ def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, s
 
     sigma_theta_tilde_sqrt_inv = np.linalg.inv(sigma_theta_tilde_sqrt)
 
-    aux = scipy.linalg.sqrtm(sigma_theta_tilde_sqrt @ (sigma_p_tilde - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T ) @ sigma_theta_tilde_sqrt)
+    aux = scipy.linalg.sqrtm(sigma_theta_tilde_sqrt @ (sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T ) @ sigma_theta_tilde_sqrt)
     B_estimation = sigma_theta_tilde_sqrt_inv @ aux @ sigma_theta_tilde_sqrt_inv
 
     print("B_estimation")
@@ -34,9 +35,9 @@ def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, s
     
     return B_estimation
 
-def two_phase_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sigma_noise_approx):
+def two_phase_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx):
     # Step 1) Get reduced sample covariance matrix
-    sigma_p_tilde =  U.T @ sigma_p @ U 
+    # sigma_p_tilde =  U.T @ sigma_p @ U 
 
     # Step 2) Get optimal solution
     B_estimated = ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx, U)
@@ -67,10 +68,10 @@ def two_phase_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sigma_noise_ap
 
     return B.value
 
-def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sigma_noise_approx):
+def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx):
     # Step 1) Get reduced sample covariance matrix (same as in two phase)
-    sigma_p_tilde =  np.transpose(U) @ sigma_p @ U 
     U_pseudinv = np.linalg.pinv(U)
+    sigma_tilde_p_hat = U_pseudinv @ sigma_p_tilde @ U_pseudinv.T
 
     # Step 2) Initialize B 
     # We use the B_PD from two phase
@@ -110,7 +111,7 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p, sig
         mu = np.maximum(mu, np.zeros(mu.shape))
 
         # equation 29
-        aux1 = -(sigma_p_tilde - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T) @ W_inv @ sigma_theta_tilde_inv
+        aux1 = -(sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T) @ W_inv @ sigma_theta_tilde_inv
         aux2 = W.T @ (big_gamma.T - big_gamma) @ W.T
         W_next = W - nabla * (aux1 - W.T - aux2 - big_lambda + np.ones((M-1,1)).T @ mu)
 

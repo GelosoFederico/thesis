@@ -1,3 +1,5 @@
+from NetworkMatrix import IEEE14_b_matrix
+from utils import get_U_matrix, matprint
 import numpy as np
 import simulations
 
@@ -37,3 +39,11 @@ def test_mse_same_matrix():
     mse = simulations.MSE_matrix(matrix1, matrix2)
 
     assert mse == 0
+
+def test_u_matrix_equation_5():
+    B, _ = IEEE14_b_matrix()
+    U = get_U_matrix(14)
+    B_tilde = B[1:,1:]
+    threshold = min(np.diag(B))
+
+    assert (np.abs(B - (U @ B_tilde @ U.T)) < threshold/10).all()
