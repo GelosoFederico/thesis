@@ -8,8 +8,8 @@ from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound, MSE_matrix, get_observations
 from GrotasAlgorithm import GrotasAlgorithm
 
-two_phase_enabled = True
-augmented_enabled = False
+two_phase_enabled = False
+augmented_enabled = True
 
 net = pandapower.networks.case14()
 pandapower.runpp(net)
@@ -97,8 +97,8 @@ if two_phase_enabled:
 if two_phase_enabled:
     print("CRBs_for_plot")
     print(CRBs_for_plot)
-print("fscore_for_plot")
-print(fscore_for_plot)
+    print("fscore_for_plot")
+    print(fscore_for_plot)
 if augmented_enabled:
     print("MSE_augmented_lagrangian_for_plot")
     print(MSE_augmented_lagrangian_for_plot)

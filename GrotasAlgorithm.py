@@ -76,31 +76,39 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
     # Step 2) Initialize B 
     # We use the B_PD from two phase
     B_estimated = ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx, U)
+    # B_estimated, _ = IEEE14_b_matrix() # FOR TESTING
+    # B_estimated = U.T @ B_estimated @ U
 
     t = 0 # iteration
 
     # lagrangian multipliers
-    mu = np.zeros((M-1, 1))  
-    big_lambda = np.zeros(B_estimated.shape)
-    big_gamma = np.zeros(B_estimated.shape)
+    mu = np.zeros((M-1, 1))  # nonnegative vector
+    big_lambda = np.zeros(B_estimated.shape) # positive semidefinite matrix
+    big_gamma = np.zeros(B_estimated.shape) # symetric matrix
 
     # other parameters
-    gamma = 0.01 # Penalty parameter
-    nabla = 0.02 # Learning rate
+    gamma = 0.1 # Penalty parameter > 0
+    nabla = 0.20 # Learning rate 1 > nabla > 0
 
     W = np.linalg.inv(B_estimated)
     W_inv = B_estimated
+    print("B_estimated")
+    matprint(B_estimated)
+    print("W")
+    matprint(W)
 
     criterion_reached = False
     sigma_theta_tilde_inv = np.linalg.inv(sigma_theta_tilde)
 
-    epsilon = 1
+    epsilon = 0.1
     while not criterion_reached:
         # update big gamma
         big_gamma = big_gamma - gamma * (W - W.T)
 
         # update big lambda
         W_off = W.copy()
+        print("W_off")
+        matprint(W_off)
         np.fill_diagonal(W_off,0)
         W_off_inv = np.linalg.inv(W_off)
         big_lambda = big_lambda + gamma * W_off_inv
@@ -111,9 +119,23 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
         mu = np.maximum(mu, np.zeros(mu.shape))
 
         # equation 29
-        aux1 = -(sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T) @ W_inv @ sigma_theta_tilde_inv
+        aux1 = (sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T) @ W_inv @ sigma_theta_tilde_inv
         aux2 = W.T @ (big_gamma.T - big_gamma) @ W.T
-        W_next = W - nabla * (aux1 - W.T - aux2 - big_lambda + np.ones((M-1,1)).T @ mu)
+        eq_29 = aux1 - W.T - aux2 - big_lambda + np.ones((M-1,1)) @ mu.T
+        print("aux1")
+        matprint(aux1)
+        print("aux2")
+        matprint(aux2)
+        print("eq_29")
+        matprint(eq_29)
+        print("big_gamma")
+        matprint(big_gamma)
+        print("big_lambda")
+        matprint(big_lambda)
+        print("mu")
+        matprint(mu)
+        print(f"{t=}")
+        W_next = W + nabla * eq_29
 
         W_inv = np.linalg.inv(W_next)
 
@@ -122,6 +144,9 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
 
         W = W_next
         t += 1
+
+        if np.isnan(W).any():
+            raise Exception
 
     return W_inv
 
