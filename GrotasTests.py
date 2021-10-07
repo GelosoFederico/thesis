@@ -61,7 +61,76 @@ def plot_B_matrix(all_runs, N_points_arr, B_real):
     matplotlib.pyplot.title("real B matrix".format(str(N), str(snr)))
     matplotlib.pyplot.show()
 
-        
+def basic_plot_checks(all_runs, N_points_arr):
+    for N in N_points_arr:
+        if two_phase_enabled:
+            MSE_two_phase = [x for x in all_runs if x['method']=='two_phase_topology' and N == x['N']]
+            MSE_two_phase_for_plot = [x['MSE'] for x in MSE_two_phase if N == x['N']]
+
+        if augmented_enabled:
+            MSE_augmented_lagrangian = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N']]
+
+            MSE_augmented_lagrangian_for_plot = [x['MSE'] for x in MSE_augmented_lagrangian if N == x['N']]
+
+        CRBs = [x for x in all_runs if x['method']=='cramer_rao_bound' and N == x['N']]
+        CRBs_for_plot = [x['MSE'] for x in CRBs if  N == x['N']]
+        if two_phase_enabled:
+            matplotlib.pyplot.plot(range_SNR, MSE_two_phase_for_plot)
+        if augmented_enabled:
+            matplotlib.pyplot.plot(range_SNR, MSE_augmented_lagrangian_for_plot)
+        matplotlib.pyplot.plot(range_SNR, CRBs_for_plot)
+        matplotlib.pyplot.title("MSE for {}".format(str(N)))
+        matplotlib.pyplot.show()
+       
+def basic_plot_prints(all_runs, N_points_arr):
+    for N in N_points_arr:
+        if two_phase_enabled:
+            MSE_two_phase = [x for x in all_runs if x['method']=='two_phase_topology' and N == x['N']]
+            MSE_two_phase_for_plot = [x['MSE'] for x in MSE_two_phase if N == x['N']]
+            fscore_for_plot = [x['F_score'] for x in MSE_two_phase if N == x['N']]
+
+        if augmented_enabled:
+            MSE_augmented_lagrangian = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N']]
+
+            MSE_augmented_lagrangian_for_plot = [x['MSE'] for x in MSE_augmented_lagrangian if N == x['N']]
+            fscore_augmented_lagrangian_for_plot = [x['F_score'] for x in MSE_augmented_lagrangian if N == x['N']]
+
+        CRBs = [x for x in all_runs if x['method']=='cramer_rao_bound' and N == x['N']]
+        CRBs_for_plot = [x['MSE'] for x in CRBs if  N == x['N']]
+    if two_phase_enabled:
+        print("MSE_two_phase_for_plot")
+        print(MSE_two_phase_for_plot)
+        print("fscore_for_plot")
+        print(fscore_for_plot)
+    if augmented_enabled:
+        print("MSE_augmented_lagrangian_for_plot")
+        print(MSE_augmented_lagrangian_for_plot)
+        print("fscore_augmented_lagrangian_for_plot")
+        print(fscore_augmented_lagrangian_for_plot)
+    print("CRBs_for_plot")
+    print(CRBs_for_plot)
+
+def plot_all_fscore(all_runs, N_points_arr, B_real):
+    plots = []
+    legend = []
+    for N in N_points_arr:
+        if two_phase_enabled:
+            plots.append([x['F_score'] for x in all_runs if x['method']=='two_phase_topology' and N == x['N']])
+            legend.append("F_score with two phase, N={}".format(N))
+        if augmented_enabled:
+            plots.append([x['F_score'] for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N']])
+            legend.append("F_score with augmented Lagrangian, N={}".format(N))
+    
+
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(1,1,1)
+    colors = ['red', 'blue', 'black', 'magenta', 'green', 'black']
+    color_gen = (x for x in colors)
+    for plot in plots:
+        ax.semilogy(range_SNR, plot,  color=next(color_gen), lw=1)
+    ax.set_title("F_score for 14-bus network")
+    fig.legend(legend)
+    matplotlib.pyplot.show()
 
 
     
@@ -136,45 +205,12 @@ for SNR in range_SNR:
             "MSE": CRB,
         })
 
-for N in points:
-    if two_phase_enabled:
-        MSE_two_phase = [x for x in MSE_tests if x['method']=='two_phase_topology' and N == x['N']]
-        MSE_two_phase_for_plot = [x['MSE'] for x in MSE_two_phase if N == x['N']]
-        fscore_for_plot = [x['F_score'] for x in MSE_two_phase if N == x['N']]
-
-    if augmented_enabled:
-        MSE_augmented_lagrangian = [x for x in MSE_tests if x['method']=='augmented_lagrangian' and N == x['N']]
-
-        MSE_augmented_lagrangian_for_plot = [x['MSE'] for x in MSE_augmented_lagrangian if N == x['N']]
-        fscore_augmented_lagrangian_for_plot = [x['F_score'] for x in MSE_augmented_lagrangian if N == x['N']]
-
-    CRBs = [x for x in MSE_tests if x['method']=='cramer_rao_bound' and N == x['N']]
-    CRBs_for_plot = [x['MSE'] for x in CRBs if  N == x['N']]
-
-
-    if two_phase_enabled:
-        print("MSE_two_phase_for_plot")
-        print(MSE_two_phase_for_plot)
-        print("fscore_for_plot")
-        print(fscore_for_plot)
-    if augmented_enabled:
-        print("MSE_augmented_lagrangian_for_plot")
-        print(MSE_augmented_lagrangian_for_plot)
-        print("fscore_augmented_lagrangian_for_plot")
-        print(fscore_augmented_lagrangian_for_plot)
-    print("CRBs_for_plot")
-    print(CRBs_for_plot)
-    if two_phase_enabled:
-        matplotlib.pyplot.plot(range_SNR, MSE_two_phase_for_plot)
-    if augmented_enabled:
-        matplotlib.pyplot.plot(range_SNR, MSE_augmented_lagrangian_for_plot)
-    matplotlib.pyplot.plot(range_SNR, CRBs_for_plot)
-    matplotlib.pyplot.title("MSE for {}".format(str(N)))
-    matplotlib.pyplot.show()
+basic_plot_prints(MSE_tests, points)
+basic_plot_checks(MSE_tests, points)
 
 # Now we do every plot in Grotas's paper
-
 plot_B_matrix(MSE_tests, points, B_real)
-
 plot_all_MSE(MSE_tests, points, range_SNR)
+plot_all_fscore(MSE_tests, points, range_SNR)
+
 
