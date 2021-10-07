@@ -7,9 +7,65 @@ from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound, MSE_matrix, get_observations
 from GrotasAlgorithm import GrotasAlgorithm
+import matplotlib.pyplot
 
 two_phase_enabled = True
 augmented_enabled = False
+
+def plot_all_MSE(all_runs, N_points_arr, range_SNR):
+    plots = []
+    legend = []
+    for N in N_points_arr:
+        if two_phase_enabled:
+            plots.append([x['MSE'] for x in all_runs if x['method']=='two_phase_topology' and N == x['N']])
+            legend.append("MSE with two phase, N={}".format(N))
+        if augmented_enabled:
+            plots.append([x['MSE'] for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N']])
+            legend.append("MSE with augmented Lagrangian, N={}".format(N))
+        plots.append([x['MSE'] for x in all_runs if x['method']=='cramer_rao_bound' and N == x['N']])
+        legend.append("CBR, N={}".format(N))
+    
+
+    fig = matplotlib.pyplot.figure()
+    ax = fig.add_subplot(1,1,1)
+    colors = ['red', 'blue', 'black', 'magenta', 'green', 'black']
+    color_gen = (x for x in colors)
+    for plot in plots:
+        ax.semilogy(range_SNR, plot,  color=next(color_gen), lw=1)
+    ax.set_title("MSE for 14-bus network")
+    ax.set_yscale('log')
+    fig.legend(legend)
+    matplotlib.pyplot.show()
+
+def plot_B_matrix(all_runs, N_points_arr, B_real):
+    target_SNR = 15
+
+    for N in N_points_arr:
+        if two_phase_enabled:
+            B = [x for x in all_runs if x['method']=='two_phase_topology' and N == x['N'] and x["SNR"] == target_SNR]
+            B = B[0]
+            snr = B['SNR']
+            B_matrix = B['B']
+            matplotlib.pyplot.matshow(B_matrix)
+            matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
+            matplotlib.pyplot.show()
+        if augmented_enabled:
+            B = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N'] and x["SNR"] == target_SNR]
+            B = B[0]
+            snr = B['SNR']
+            B_matrix = B['B']
+            matplotlib.pyplot.matshow(B_matrix)
+            matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
+            matplotlib.pyplot.show()
+    matplotlib.pyplot.matshow(B_real)
+    matplotlib.pyplot.title("real B matrix".format(str(N), str(snr)))
+    matplotlib.pyplot.show()
+
+        
+
+
+    
+
 
 net = pandapower.networks.case14()
 pandapower.runpp(net)
@@ -80,7 +136,6 @@ for SNR in range_SNR:
             "MSE": CRB,
         })
 
-import matplotlib.pyplot
 for N in points:
     if two_phase_enabled:
         MSE_two_phase = [x for x in MSE_tests if x['method']=='two_phase_topology' and N == x['N']]
@@ -117,23 +172,9 @@ for N in points:
     matplotlib.pyplot.title("MSE for {}".format(str(N)))
     matplotlib.pyplot.show()
 
+# Now we do every plot in Grotas's paper
 
-    # Now we do every plot in Grotas's paper
-    if two_phase_enabled:
-        B = [x for x in MSE_tests if x['method']=='two_phase_topology' and N == x['N'] and x["SNR"] == 15]
-        B = B[0]
-        snr = B['SNR']
-        B_matrix = B['B']
-        matplotlib.pyplot.matshow(B_matrix)
-        matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
-        matplotlib.pyplot.show()
-    if augmented_enabled:
-        B = [x for x in MSE_tests if x['method']=='augmented_lagrangian' and N == x['N'] and x["SNR"] == 15]
-        B = B[0]
-        snr = B['SNR']
-        B_matrix = B['B']
-        matplotlib.pyplot.matshow(B_matrix)
-        matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
-        matplotlib.pyplot.show()
-    matplotlib.pyplot.matshow(B_real)
-    matplotlib.pyplot.show()
+plot_B_matrix(MSE_tests, points, B_real)
+
+plot_all_MSE(MSE_tests, points, range_SNR)
+
