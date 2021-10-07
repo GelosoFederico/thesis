@@ -3,6 +3,7 @@ import pandapower.networks
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot
+from datetime import datetime
 from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound, MSE_matrix, get_observations
@@ -11,6 +12,7 @@ import matplotlib.pyplot
 
 two_phase_enabled = True
 augmented_enabled = False
+time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
 def plot_all_MSE(all_runs, N_points_arr, range_SNR):
     plots = []
@@ -35,6 +37,10 @@ def plot_all_MSE(all_runs, N_points_arr, range_SNR):
     ax.set_title("MSE for 14-bus network")
     ax.set_yscale('log')
     fig.legend(legend)
+    matplotlib.pyplot.grid()
+    matplotlib.pyplot.xlabel('MSE')
+    matplotlib.pyplot.ylabel('SNR [dB]')
+    matplotlib.pyplot.savefig('plots/MSE_14_bus{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
 def plot_B_matrix(all_runs, N_points_arr, B_real):
@@ -48,17 +54,20 @@ def plot_B_matrix(all_runs, N_points_arr, B_real):
             B_matrix = B['B']
             matplotlib.pyplot.matshow(B_matrix)
             matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
+            matplotlib.pyplot.savefig('plots/two_phase_topology_B_matrix{}.png'.format(time_now))
             matplotlib.pyplot.show()
         if augmented_enabled:
-            B = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N'] and x["SNR"] == target_SNR]
+            B = [x for x in all_runs if x['method']=='' and N == x['N'] and x["SNR"] == target_SNR]
             B = B[0]
             snr = B['SNR']
             B_matrix = B['B']
             matplotlib.pyplot.matshow(B_matrix)
             matplotlib.pyplot.title("B matrix, N={}, SNR={} dB".format(str(N), str(snr)))
+            matplotlib.pyplot.savefig('plots/augmented_lagrangian_B_matrix{}.png'.format(time_now))
             matplotlib.pyplot.show()
     matplotlib.pyplot.matshow(B_real)
     matplotlib.pyplot.title("real B matrix".format(str(N), str(snr)))
+    matplotlib.pyplot.savefig('plots/real_B_matrix{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
 def basic_plot_checks(all_runs, N_points_arr):
@@ -80,6 +89,9 @@ def basic_plot_checks(all_runs, N_points_arr):
             matplotlib.pyplot.plot(range_SNR, MSE_augmented_lagrangian_for_plot)
         matplotlib.pyplot.plot(range_SNR, CRBs_for_plot)
         matplotlib.pyplot.title("MSE for {}".format(str(N)))
+        matplotlib.pyplot.grid()
+        matplotlib.pyplot.xlabel('MSE')
+        matplotlib.pyplot.ylabel('SNR [dB]')
         matplotlib.pyplot.show()
        
 def basic_plot_prints(all_runs, N_points_arr):
@@ -130,6 +142,10 @@ def plot_all_fscore(all_runs, N_points_arr, B_real):
         ax.semilogy(range_SNR, plot,  color=next(color_gen), lw=1)
     ax.set_title("F_score for 14-bus network")
     fig.legend(legend)
+    matplotlib.pyplot.grid()
+    matplotlib.pyplot.xlabel('F-score')
+    matplotlib.pyplot.ylabel('SNR [dB]')
+    matplotlib.pyplot.savefig('plots/f_score_14_bus{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
 
@@ -146,7 +162,8 @@ print("B_Real_tilde")
 B_real_tilde = B_real[1:,1:]
 matprint(B_real_tilde)
 c = 1
-range_SNR = np.linspace(0, 25, 6)
+range_SNR = np.linspace(0, 25, 21)
+print(range_SNR)
 points = [200, 1500]
 for SNR in range_SNR:
     for N in points:
