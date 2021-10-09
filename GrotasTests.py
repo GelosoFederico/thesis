@@ -1,5 +1,6 @@
 import pandapower
 import pandapower.networks
+import json
 import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot
@@ -7,6 +8,7 @@ from datetime import datetime
 from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound, MSE_matrix, get_observations
+import GrotasAlgorithm
 from GrotasAlgorithm import GrotasAlgorithm
 import matplotlib.pyplot
 
@@ -38,8 +40,8 @@ def plot_all_MSE(all_runs, N_points_arr, range_SNR):
     ax.set_yscale('log')
     fig.legend(legend)
     matplotlib.pyplot.grid()
-    matplotlib.pyplot.xlabel('MSE')
-    matplotlib.pyplot.ylabel('SNR [dB]')
+    matplotlib.pyplot.ylabel('MSE')
+    matplotlib.pyplot.xlabel('SNR [dB]')
     matplotlib.pyplot.savefig('plots/MSE_14_bus{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
@@ -70,7 +72,7 @@ def plot_B_matrix(all_runs, N_points_arr, B_real):
     matplotlib.pyplot.savefig('plots/real_B_matrix{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
-def basic_plot_checks(all_runs, N_points_arr):
+def basic_plot_checks(all_runs, N_points_arr, range_SNR):
     for N in N_points_arr:
         if two_phase_enabled:
             MSE_two_phase = [x for x in all_runs if x['method']=='two_phase_topology' and N == x['N']]
@@ -103,7 +105,6 @@ def basic_plot_prints(all_runs, N_points_arr):
 
         if augmented_enabled:
             MSE_augmented_lagrangian = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N']]
-
             MSE_augmented_lagrangian_for_plot = [x['MSE'] for x in MSE_augmented_lagrangian if N == x['N']]
             fscore_augmented_lagrangian_for_plot = [x['F_score'] for x in MSE_augmented_lagrangian if N == x['N']]
 
@@ -149,85 +150,90 @@ def plot_all_fscore(all_runs, N_points_arr, B_real):
     matplotlib.pyplot.show()
 
 
-    
+def run_test(B_real, observations, sigma_theta, method):
+    B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, sigma_theta, method)
+    MSE = MSE_matrix(B_real, B)
+    fs = F_score(B, B_real)
+    print(f"{fs=}")
+    # print("B_found")
+    # matprint(B)
+    return {
+        "method": method,
+        "N": observations.shape[0],
+        "B": B,
+        "theta": theta,
+        "sigma_est": sigma_est,
+        "sigma_p": sigma_p,
+        "MSE": MSE,
+        "F_score": fs
+    }
 
+def run_cramer_rao_bound(B, sigma_est, sigma_p, sigma_theta, N):
+    M = B.shape[0]
+    U = get_U_matrix(M)
+    CRB = cramer_rao_bound(M, U.T @ B @ U, sigma_est**2,sigma_p, U.T @ sigma_theta @ U, N)
+    return{
+        "method": 'cramer_rao_bound',
+        "N": N,
+        "MSE": CRB,
+    }
+
+def save_as_jason(all_runs):
+    serializable_things = []
+    for run in all_runs:
+        new_run = run.copy()
+        if 'B' in new_run:
+            del new_run['B']
+        serializable_things.append(new_run)
+        if 'theta' in new_run:
+            del new_run['theta']
+        if 'sigma_p' in new_run:
+            del new_run['sigma_p']
+    with open("runs/run_{}.json".format(time_now), 'w') as fp:
+        json.dump(serializable_things, fp, sort_keys=True, indent=4)
 
 net = pandapower.networks.case14()
 pandapower.runpp(net)
 MSE_tests = []
 B_real, A = get_b_matrix_from_network(net)
 B_real, A = IEEE14_b_matrix()
-print("B_Real_tilde")
-# U = get_U_matrix(B_real.shape[0])
-B_real_tilde = B_real[1:,1:]
-matprint(B_real_tilde)
 c = 1
-range_SNR = np.linspace(0, 25, 21)
-print(range_SNR)
+range_SNR = np.linspace(0, 25, 11)
+# range_SNR = [0]
 points = [200, 1500]
+GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
+GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
+
+MSE_tests = []
 for SNR in range_SNR:
     for N in points:
         sigma_est = None
-        sigma_est_aug = None
         sigma_p = None
-        sigma_p_aug = None
         observations, sigma_theta = get_observations(N, SNR, c, B_real)
-        
-        if two_phase_enabled:
-            B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, sigma_theta, 'two_phase_topology')
-            MSE = MSE_matrix(B_real, B)
-            fs = F_score(B, B_real)
-            print(f"{fs=}")
-            print("B_found")
-            matprint(B)
-            MSE_tests.append({
-                "method": 'two_phase_topology',
-                "N": N,
-                "SNR": SNR,
-                "B": B,
-                "theta": theta,
-                "sigma_est": sigma_est,
-                "sigma_p": sigma_p,
-                "MSE": MSE,
-                "F_score": fs
-            })
         if augmented_enabled:
-            B_aug, theta_aug, sigma_est_aug, sigma_p_aug = GrotasAlgorithm(observations, sigma_theta, 'augmented_lagrangian')
-            MSE_aug = MSE_matrix(B_real, B_aug)
-            fs_aug = F_score(B_aug, B_real)
-            print(f"{fs_aug=}")
-            print("B_found")
-            matprint(B_aug)
-            MSE_tests.append({
-                "method": 'augmented_lagrangian',
-                "N": N,
-                "SNR": SNR,
-                "B": B_aug,
-                "theta": theta_aug,
-                "sigma_est": sigma_est_aug,
-                "sigma_p": sigma_p_aug,
-                "MSE": MSE_aug,
-                "F_score": fs_aug
-            })
+            run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian')
+            run['SNR'] = SNR
+            MSE_tests.append(run)
+            sigma_est = run['sigma_est']
+            sigma_p = run['sigma_p']
+        if two_phase_enabled:
+            run = run_test(B_real, observations, sigma_theta, 'two_phase_topology')
+            run['SNR'] = SNR
+            MSE_tests.append(run)
+            sigma_est = run['sigma_est']
+            sigma_p = run['sigma_p']
 
-        M = B.shape[0]
-        U = get_U_matrix(M)
-        sigma_crb = sigma_est if sigma_est.all() else sigma_est_aug
-        sigma_p_crb = sigma_p if sigma_p.all() else sigma_p_aug
-        CRB = cramer_rao_bound(M, U.T @ B @ U, sigma_crb**2,sigma_p, U.T @ sigma_theta @ U, N)
-        MSE_tests.append({
-            "method": 'cramer_rao_bound',
-            "N": N,
-            "SNR": SNR,
-            "MSE": CRB,
-        })
+        run = run_cramer_rao_bound(B_real, sigma_est, sigma_p, sigma_theta, N)
+        run['SNR'] = SNR
+        MSE_tests.append(run)
 
 basic_plot_prints(MSE_tests, points)
-basic_plot_checks(MSE_tests, points)
+basic_plot_checks(MSE_tests, points, range_SNR)
 
 # Now we do every plot in Grotas's paper
 plot_B_matrix(MSE_tests, points, B_real)
 plot_all_MSE(MSE_tests, points, range_SNR)
 plot_all_fscore(MSE_tests, points, range_SNR)
+save_as_jason(MSE_tests)
 
 

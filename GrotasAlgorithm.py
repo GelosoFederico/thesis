@@ -10,6 +10,8 @@ from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 
+augmented_lagrangian_penalty_parameter = 0.1
+augmented_lagrangian_learning_rate = 0.2 # 1 > learning_rate > 0
 # TODO change all np.transpose to matrix.T
 
 def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sigma_noise_approx, U):
@@ -87,9 +89,10 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
     big_gamma = np.zeros(B_estimated.shape) # symetric matrix
 
     # other parameters
-    gamma = 0.1 # Penalty parameter > 0
-    nabla = 0.20 # Learning rate 1 > nabla > 0
+    gamma = augmented_lagrangian_penalty_parameter if augmented_lagrangian_penalty_parameter else 0.1 # Penalty parameter > 0
+    nabla = augmented_lagrangian_learning_rate if augmented_lagrangian_learning_rate else 0.20 # Learning rate 1 > nabla > 0
 
+    print("gamma is {} and nabla is {}".format(gamma, nabla))
     W = np.linalg.inv(B_estimated)
     W_inv = B_estimated
     print("B_estimated")
