@@ -192,48 +192,50 @@ def save_as_jason(all_runs):
     with open("runs/run_{}.json".format(time_now), 'w') as fp:
         json.dump(serializable_things, fp, sort_keys=True, indent=4)
 
-net = pandapower.networks.case14()
-pandapower.runpp(net)
-MSE_tests = []
-B_real, A = get_b_matrix_from_network(net)
-B_real, A = IEEE14_b_matrix()
-c = 1
-range_SNR = np.linspace(0, 25, 11)
-# range_SNR = [0]
-points = [200, 1500]
-GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
-GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
+if __name__ == '__main__':
 
-MSE_tests = []
-for SNR in range_SNR:
-    for N in points:
-        sigma_est = None
-        sigma_p = None
-        observations, sigma_theta = get_observations(N, SNR, c, B_real)
-        if augmented_enabled:
-            run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian')
+    net = pandapower.networks.case14()
+    pandapower.runpp(net)
+    MSE_tests = []
+    B_real, A = get_b_matrix_from_network(net)
+    B_real, A = IEEE14_b_matrix()
+    c = 1
+    range_SNR = np.linspace(0, 25, 11)
+    # range_SNR = [0]
+    points = [200, 1500]
+    GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
+    GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
+
+    MSE_tests = []
+    for SNR in range_SNR:
+        for N in points:
+            sigma_est = None
+            sigma_p = None
+            observations, sigma_theta = get_observations(N, SNR, c, B_real)
+            if augmented_enabled:
+                run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian')
+                run['SNR'] = SNR
+                MSE_tests.append(run)
+                sigma_est = run['sigma_est']
+                sigma_p = run['sigma_p']
+            if two_phase_enabled:
+                run = run_test(B_real, observations, sigma_theta, 'two_phase_topology')
+                run['SNR'] = SNR
+                MSE_tests.append(run)
+                sigma_est = run['sigma_est']
+                sigma_p = run['sigma_p']
+
+            run = run_cramer_rao_bound(B_real, sigma_est, sigma_p, sigma_theta, N)
             run['SNR'] = SNR
             MSE_tests.append(run)
-            sigma_est = run['sigma_est']
-            sigma_p = run['sigma_p']
-        if two_phase_enabled:
-            run = run_test(B_real, observations, sigma_theta, 'two_phase_topology')
-            run['SNR'] = SNR
-            MSE_tests.append(run)
-            sigma_est = run['sigma_est']
-            sigma_p = run['sigma_p']
 
-        run = run_cramer_rao_bound(B_real, sigma_est, sigma_p, sigma_theta, N)
-        run['SNR'] = SNR
-        MSE_tests.append(run)
+    basic_plot_prints(MSE_tests, points)
+    basic_plot_checks(MSE_tests, points, range_SNR)
 
-basic_plot_prints(MSE_tests, points)
-basic_plot_checks(MSE_tests, points, range_SNR)
-
-# Now we do every plot in Grotas's paper
-plot_B_matrix(MSE_tests, points, B_real)
-plot_all_MSE(MSE_tests, points, range_SNR)
-plot_all_fscore(MSE_tests, points, range_SNR)
-save_as_jason(MSE_tests)
+    # Now we do every plot in Grotas's paper
+    plot_B_matrix(MSE_tests, points, B_real)
+    plot_all_MSE(MSE_tests, points, range_SNR)
+    plot_all_fscore(MSE_tests, points, range_SNR)
+    save_as_jason(MSE_tests)
 
 

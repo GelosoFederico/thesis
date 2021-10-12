@@ -32,8 +32,8 @@ def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sig
     aux = scipy.linalg.sqrtm(sigma_theta_tilde_sqrt @ (sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T ) @ sigma_theta_tilde_sqrt)
     B_estimation = sigma_theta_tilde_sqrt_inv @ aux @ sigma_theta_tilde_sqrt_inv
 
-    print("B_estimation")
-    matprint(B_estimation)
+    # print("B_estimation")
+    # matprint(B_estimation)
     
     return B_estimation
 
@@ -95,23 +95,26 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
     print("gamma is {} and nabla is {}".format(gamma, nabla))
     W = np.linalg.inv(B_estimated)
     W_inv = B_estimated
-    print("B_estimated")
-    matprint(B_estimated)
-    print("W")
-    matprint(W)
+    # print("B_estimated")
+    # matprint(B_estimated)
+    # print("W")
+    # matprint(W)
 
     criterion_reached = False
     sigma_theta_tilde_inv = np.linalg.inv(sigma_theta_tilde)
 
-    epsilon = 0.1
+    epsilon = nabla * 1 # 0.1
+    max_amount_of_its = int(1/nabla)
+    max_amount_of_its = max([1e5,max_amount_of_its])
+    max_amount_of_its = min([5e4,max_amount_of_its])
     while not criterion_reached:
         # update big gamma
         big_gamma = big_gamma - gamma * (W - W.T)
 
         # update big lambda
         W_off = W.copy()
-        print("W_off")
-        matprint(W_off)
+        # print("W_off")
+        # matprint(W_off)
         np.fill_diagonal(W_off,0)
         W_off_inv = np.linalg.inv(W_off)
         big_lambda = big_lambda + gamma * W_off_inv
@@ -125,19 +128,19 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
         aux1 = (sigma_tilde_p_hat - sigma_noise_approx**2 * U_pseudinv @ U_pseudinv.T) @ W_inv @ sigma_theta_tilde_inv
         aux2 = W.T @ (big_gamma.T - big_gamma) @ W.T
         eq_29 = aux1 - W.T - aux2 - big_lambda + np.ones((M-1,1)) @ mu.T
-        print("aux1")
-        matprint(aux1)
-        print("aux2")
-        matprint(aux2)
-        print("eq_29")
-        matprint(eq_29)
-        print("big_gamma")
-        matprint(big_gamma)
-        print("big_lambda")
-        matprint(big_lambda)
-        print("mu")
-        matprint(mu)
-        print(f"{t=}")
+        # print("aux1")
+        # matprint(aux1)
+        # print("aux2")
+        # matprint(aux2)
+        # print("eq_29")
+        # matprint(eq_29)
+        # print("big_gamma")
+        # matprint(big_gamma)
+        # print("big_lambda")
+        # matprint(big_lambda)
+        # print("mu")
+        # matprint(mu)
+        # print(f"{t=}")
         W_next = W + nabla * eq_29
 
         W_inv = np.linalg.inv(W_next)
@@ -149,7 +152,9 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
         t += 1
 
         if np.isnan(W).any():
-            raise Exception
+            raise Exception(t)
+        if t > max_amount_of_its:
+            raise Exception(t)
 
     return W_inv
 
