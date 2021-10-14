@@ -10,8 +10,8 @@ B_real, A = IEEE14_b_matrix()
 SNR = 10
 points = 1500
 
-nabla_values = np.geomspace(1e-12, 1e-1, 21)
-gamma_values = np.geomspace(1e-12, 1e-1, 21)
+nabla_values = np.geomspace(1e-8, 1e-7, 6)
+gamma_values = np.geomspace(1e-8, 1e-7, 6)
 
 matrix_values = np.zeros((nabla_values.shape[0], gamma_values.shape[0]))
 

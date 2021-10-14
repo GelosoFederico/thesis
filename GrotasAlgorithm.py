@@ -10,8 +10,8 @@ from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 
-augmented_lagrangian_penalty_parameter = 0.1
-augmented_lagrangian_learning_rate = 0.2 # 1 > learning_rate > 0
+augmented_lagrangian_penalty_parameter = 1e-7
+augmented_lagrangian_learning_rate = 1e-7 # 1 > learning_rate > 0
 # TODO change all np.transpose to matrix.T
 
 def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sigma_noise_approx, U):
@@ -103,10 +103,10 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
     criterion_reached = False
     sigma_theta_tilde_inv = np.linalg.inv(sigma_theta_tilde)
 
-    epsilon = nabla * 1 # 0.1
+    epsilon = nabla # 0.1
     max_amount_of_its = int(1/nabla)
-    max_amount_of_its = max([1e5,max_amount_of_its])
-    max_amount_of_its = min([5e4,max_amount_of_its])
+    max_amount_of_its = max([1e6,max_amount_of_its])
+    max_amount_of_its = min([1e4,max_amount_of_its])
     while not criterion_reached:
         # update big gamma
         big_gamma = big_gamma - gamma * (W - W.T)
@@ -141,7 +141,7 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
         # print("mu")
         # matprint(mu)
         # print(f"{t=}")
-        W_next = W + nabla * eq_29
+        W_next = W - nabla * eq_29
 
         W_inv = np.linalg.inv(W_next)
 
@@ -154,7 +154,7 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
         if np.isnan(W).any():
             raise Exception(t)
         if t > max_amount_of_its:
-            raise Exception(t)
+            return W_inv
 
     return W_inv
 

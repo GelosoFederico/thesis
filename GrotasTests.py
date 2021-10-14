@@ -13,7 +13,7 @@ from GrotasAlgorithm import GrotasAlgorithm
 import matplotlib.pyplot
 
 two_phase_enabled = True
-augmented_enabled = False
+augmented_enabled = True
 time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
 def plot_all_MSE(all_runs, N_points_arr, range_SNR):
@@ -59,7 +59,7 @@ def plot_B_matrix(all_runs, N_points_arr, B_real):
             matplotlib.pyplot.savefig('plots/two_phase_topology_B_matrix{}.png'.format(time_now))
             matplotlib.pyplot.show()
         if augmented_enabled:
-            B = [x for x in all_runs if x['method']=='' and N == x['N'] and x["SNR"] == target_SNR]
+            B = [x for x in all_runs if x['method']=='augmented_lagrangian' and N == x['N'] and x["SNR"] == target_SNR]
             B = B[0]
             snr = B['SNR']
             B_matrix = B['B']
@@ -200,11 +200,11 @@ if __name__ == '__main__':
     B_real, A = get_b_matrix_from_network(net)
     B_real, A = IEEE14_b_matrix()
     c = 1
-    range_SNR = np.linspace(0, 25, 11)
+    range_SNR = np.linspace(0, 25, 21)
     # range_SNR = [0]
     points = [200, 1500]
-    GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
-    GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
+    # GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
+    # GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
 
     MSE_tests = []
     for SNR in range_SNR:
