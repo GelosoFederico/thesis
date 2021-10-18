@@ -6,7 +6,6 @@ import pandapower.networks
 import numpy as np
 import scipy.linalg
 import cvxpy as cp
-from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 

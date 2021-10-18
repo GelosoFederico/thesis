@@ -17,7 +17,8 @@ def get_observations(N, SNR, c, B):
     # TODO send distribution as param
     theta_created = np.random.default_rng().normal(0, c, (M,N))
     noise =  np.random.default_rng().normal(0, noise_sigma, (M,N)) 
-    return ((B @ theta_created) + noise).T, sigma_theta
+    states = B @ theta_created
+    return ((states) + noise).T, sigma_theta, states, noise_sigma
 
 
 
@@ -106,3 +107,14 @@ def MSE_matrix(matrix_real, matrix_est):
     diff_matrix = matrix_real - matrix_est
     return np.trace(diff_matrix @ diff_matrix.T)
 
+def state_estimator(observations, B, sigma_theta, sigma_error):
+    M = B.shape[0]
+    aux = B.T @ sigma_theta @ B + sigma_error**2 * np.eye(M)
+    aux_pinv = np.linalg.pinv(aux)
+    return sigma_theta @ B @ aux_pinv @ observations.T
+
+def MSE_states(observations, B, sigma_theta, sigma_error, states):
+    estimation = state_estimator(observations, B, sigma_theta, sigma_error)
+    N = observations.shape[0]
+    M = observations.shape[1]
+    return MSE_matrix(estimation, states)/(N*M)
