@@ -62,11 +62,6 @@ def two_phase_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tilde, sigma_no
     problem = cp.Problem(cp.Minimize(cp.sum_squares(B_target - B)), constraints=constraints)
     problem.solve()
 
-    print("B_target")
-    matprint(B_target)
-    print("B")
-    matprint(B.value)
-
     return B.value
 
 def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx):
@@ -104,8 +99,8 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
 
     epsilon = nabla # 0.1
     max_amount_of_its = int(1/nabla)
-    max_amount_of_its = max([1e6,max_amount_of_its])
-    max_amount_of_its = min([1e4,max_amount_of_its])
+    max_amount_of_its = max([1e4,max_amount_of_its])
+    max_amount_of_its = min([1e3,max_amount_of_its])
     while not criterion_reached:
         # update big gamma
         big_gamma = big_gamma - gamma * (W - W.T)

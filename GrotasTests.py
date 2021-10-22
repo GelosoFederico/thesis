@@ -5,14 +5,14 @@ import numpy as np
 import cvxpy as cp
 import matplotlib.pyplot
 from datetime import datetime
-from NetworkMatrix import get_b_matrix_from_network, IEEE14_b_matrix
+from NetworkMatrix import IEEE118_b_matrix, get_b_matrix_from_network, IEEE14_b_matrix
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound, MSE_matrix, get_observations, MSE_states
 import GrotasAlgorithm
 from GrotasAlgorithm import GrotasAlgorithm
 import matplotlib.pyplot
 
-two_phase_enabled = True
+two_phase_enabled = False
 augmented_enabled = True
 time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
@@ -121,8 +121,8 @@ def basic_plot_checks(all_runs, N_points_arr, range_SNR):
         matplotlib.pyplot.plot(range_SNR, CRBs_for_plot)
         matplotlib.pyplot.title("MSE for {}".format(str(N)))
         matplotlib.pyplot.grid(True, which='both')
-        matplotlib.pyplot.xlabel('MSE')
-        matplotlib.pyplot.ylabel('SNR [dB]')
+        matplotlib.pyplot.ylabel('MSE')
+        matplotlib.pyplot.xlabel('SNR [dB]')
         matplotlib.pyplot.show()
        
 def basic_plot_prints(all_runs, N_points_arr):
@@ -173,8 +173,8 @@ def plot_all_fscore(all_runs, N_points_arr, B_real):
     ax.set_title("F_score for 14-bus network")
     fig.legend(legend)
     matplotlib.pyplot.grid(True, which='both')
-    matplotlib.pyplot.xlabel('F-score')
-    matplotlib.pyplot.ylabel('SNR [dB]')
+    matplotlib.pyplot.xlabel('SNR [dB]')
+    matplotlib.pyplot.ylabel('F-score')
     matplotlib.pyplot.savefig('plots/f_score_14_bus{}.png'.format(time_now))
     matplotlib.pyplot.show()
 
@@ -238,10 +238,9 @@ if __name__ == '__main__':
     pandapower.runpp(net)
     MSE_tests = []
     B_real, A = get_b_matrix_from_network(net)
-    B_real, A = IEEE14_b_matrix()
+    B_real, A = IEEE118_b_matrix()
     c = 1
     range_SNR = np.linspace(0, 25, 21)
-    # range_SNR = [0]
     points = [200, 1500]
     # GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 0.2
     # GrotasAlgorithm.augmented_lagrangian_learning_rate = 0.1
