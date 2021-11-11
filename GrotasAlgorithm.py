@@ -9,8 +9,8 @@ import cvxpy as cp
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 
-augmented_lagrangian_penalty_parameter = 1e-7
-augmented_lagrangian_learning_rate = 1e-7 # 1 > learning_rate > 0
+augmented_lagrangian_penalty_parameter = 1e-10
+augmented_lagrangian_learning_rate = 1e-10 # 1 > learning_rate > 0
 # TODO change all np.transpose to matrix.T
 
 def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sigma_noise_approx, U):
@@ -72,8 +72,6 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
     # Step 2) Initialize B 
     # We use the B_PD from two phase
     B_estimated = ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_tilde, sigma_noise_approx, U)
-    # B_estimated, _ = IEEE14_b_matrix() # FOR TESTING
-    # B_estimated = U.T @ B_estimated @ U
 
     t = 0 # iteration
 
@@ -99,8 +97,8 @@ def augmented_lagrangian_topology_recovery(N,M,U,sigma_theta_tilde, sigma_p_tild
 
     epsilon = nabla # 0.1
     max_amount_of_its = int(1/nabla)
-    max_amount_of_its = max([1e4,max_amount_of_its])
-    max_amount_of_its = min([1e3,max_amount_of_its])
+    max_amount_of_its = min([1e4,max_amount_of_its])
+    max_amount_of_its = max([1e3,max_amount_of_its])
     while not criterion_reached:
         # update big gamma
         big_gamma = big_gamma - gamma * (W - W.T)

@@ -7,7 +7,7 @@ from utils import matprint
 
 
 B_real, A = IEEE118_b_matrix()
-SNR = 10
+SNR = 45
 points = 300
 
 nabla_values = np.geomspace(1e-12, 1e-1, 12)
@@ -15,7 +15,7 @@ gamma_values = np.geomspace(1e-12, 1e-1, 12)
 
 matrix_values = np.zeros((nabla_values.shape[0], gamma_values.shape[0]))
 
-observations, sigma_theta, states, noise_sigma = GrotasTests.get_observations(points, SNR, 1, B_real)
+observations, sigma_theta, states, noise_sigma = GrotasTests.get_observations(points, SNR, np.sqrt(10), B_real)
 
 for nabla in range(0, len(nabla_values)):
     GrotasAlgorithm.augmented_lagrangian_learning_rate = nabla_values[nabla]
