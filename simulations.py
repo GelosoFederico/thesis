@@ -110,17 +110,23 @@ def cramer_rao_bound(M, B_til_est, sigma_sqr, sigma_p, sigma_theta_tilde, N):
 
 def MSE_matrix(matrix_real, matrix_est):
     diff_matrix = matrix_real - matrix_est
-    return np.trace(diff_matrix @ diff_matrix.T)
+    mse = np.trace(diff_matrix @ diff_matrix.T)
+    if mse != np.real(mse):
+        print(mse)
+        mse = np.real(mse)
+    return mse
 
 
 def state_estimator(observations, B, sigma_theta, sigma_error):
     M = B.shape[0]
-    aux = B.T @ sigma_theta @ B + sigma_error * np.eye(M)
-    aux_pinv = np.linalg.pinv(aux, hermitian=True)
+    sigma_error_mat = sigma_error * np.eye(M)
+    aux = (B.T @ sigma_error_mat @ B) + sigma_theta
+    # aux_pinv = np.linalg.inv(aux, hermitian=True)
+    aux_pinv = np.linalg.inv(aux)
     # print(f"{sigma_error=}")
     # print(f"{np.linalg.norm(aux)=}")
     # print(f"{np.linalg.norm(aux_pinv)=}")
-    return sigma_theta @ B @ aux_pinv @ observations.T
+    return np.linalg.inv(sigma_error_mat) @ B @ aux_pinv @ observations.T
 
 
 def MSE_states(observations, B, sigma_theta, sigma_error, states):
@@ -132,7 +138,7 @@ def MSE_states(observations, B, sigma_theta, sigma_error, states):
     return np.real(np.sum(ones.T @ np.abs(estimation - states))) / (N * M)
 
 
-def MSE_states_slow_way(observations, B, sigma_theta, sigma_error, states):
+def MSE_states_slow(observations, B, sigma_theta, sigma_error, states):
     N = observations.shape[0]
     M = observations.shape[1]
 
@@ -142,9 +148,23 @@ def MSE_states_slow_way(observations, B, sigma_theta, sigma_error, states):
         error = (states[:, i].T - estimation)**2
         error_total += sum(error) / M
 
-    # print(estimation - states)
-    # ones = np.ones((M, 1))
-    # print(np.sum(ones.T @ (estimation - states)))
     print(error_total)
-    # return np.real(np.sum(ones.T @ np.abs(estimation - states))) / (N * M)
     return error_total / N
+
+
+def MSE_states_theoretical(observations, B, sigma_theta, sigma_error, states):
+    N = observations.shape[0]
+    M = observations.shape[1]
+
+    B_inv = np.linalg.inv(B)
+    sigma_w = sigma_error * np.eye(M)
+    sigma_p = B @ sigma_theta @ B.T + sigma_w
+    sigma_p_pinv = np.linalg.pinv(sigma_p)
+    matrix_MSE = \
+        sigma_theta \
+        - B_inv @ sigma_p @ sigma_p_pinv.T @ B.T @ sigma_theta.T \
+        + B_inv @ sigma_w @ sigma_p_pinv.T @ B.T @ sigma_theta.T \
+        - sigma_theta @ B @ sigma_p_pinv @ sigma_p @ B_inv.T \
+        + sigma_theta @ B @ sigma_p_pinv @ sigma_w @ B_inv.T \
+        + sigma_theta @ B @ sigma_p_pinv @ sigma_p @ sigma_p_pinv.T @ B.T @ sigma_theta.T
+    return np.sum(np.abs(matrix_MSE))
