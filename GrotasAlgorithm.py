@@ -11,6 +11,7 @@ from simulations import F_score, cramer_rao_bound
 
 augmented_lagrangian_penalty_parameter = 1e-10
 augmented_lagrangian_learning_rate = 1e-10 # 1 > learning_rate > 0
+base_sparsity = 2
 # TODO change all np.transpose to matrix.T
 
 def ML_symmetric_positive_definite_estimator(sigma_theta_tilde, sigma_p_hat, sigma_noise_approx, U):
@@ -188,11 +189,13 @@ def GrotasAlgorithm(observations, state_covariance_matrix, method='two_phase_top
             B_tilde_approx = augmented_lagrangian_topology_recovery(N,M,U,E_theta_tilde,E_p,sigma_noise_approx)
             # Step 6) Get \hat(B) from \hat(\tilde(B))
             B_approx = U @ B_tilde_approx @ U.T
-        return B_approx
+        # print("final B")
+        # matprint(B_approx)
+        return np.real(B_approx)
     
     def step_7(M, B_approx):
         # Step 7) Impose sparsity with a threshold
-        sparsity_value = 2/M
+        sparsity_value = base_sparsity / M
         threshold = np.diag(B_approx).min() * sparsity_value
         return np.where(np.abs(B_approx) < threshold, 0, B_approx)
 
