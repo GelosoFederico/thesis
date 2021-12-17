@@ -3,7 +3,7 @@ import pandapower as pp
 
 def get_b_matrix_from_network(network):
     M = len(network.bus)
-    data_for_B = network.line[['from_bus','to_bus','x_ohm_per_km', 'length_km']]
+    data_for_B = network.line[['from_bus','to_bus','x_ohm_per_km', 'length_km', 'max_i_ka']]
     B_real = np.zeros((M,M))
     A = np.zeros((M,M))
     for row in data_for_B.iterrows():
@@ -11,8 +11,13 @@ def get_b_matrix_from_network(network):
         # k = network.bus.index.get_loc(int(row[1]['to_bus']))
         m = int(row[1]['from_bus'])
         k = int(row[1]['to_bus'])
+        # TODO: look into how to do this right
+        indexes = list(network.bus.index)
+        bus_m = network.bus.iloc[indexes.index(m)]
+        bus_k = network.bus.iloc[indexes.index(k)]
+        v_ms = bus_m['vn_kv'] * bus_k['vn_kv']
         if m != k:
-            b_mk = -1/(row[1]['x_ohm_per_km'] * row[1]['length_km'])
+            b_mk = -(row[1]['x_ohm_per_km'] * row[1]['length_km'] / v_ms * 100) # TODO check where does the 100 come from
             B_real[m,k] = b_mk
             B_real[k,m] = b_mk
             B_real[m,m] -= b_mk
@@ -24,13 +29,12 @@ def get_b_matrix_from_network(network):
         # From pandapower documentation (https://pandapower.readthedocs.io/en/v2.6.0/elements/trafo.html), xkm is
         # sqrt(z^2 - r^2) where alpha = net.sn_mva/sn_mva  z = vk_percent*alpha/100 and r = vkr_percent*alpha/100
         # b = -1/x
-        ratio = row[1]['vn_hv_kv'] / row[1]['vn_lv_kv']
         m = int(row[1]['hv_bus'])
         k = int(row[1]['lv_bus'])
-        r = row[1]['vkr_percent'] * network.sn_mva / row[1]['sn_mva'] / 100
-        z = row[1]['vk_percent'] * network.sn_mva / row[1]['sn_mva'] / 100
-        x_mk =  np.sqrt(z**2 - r**2) * ratio
-        b_mk = -1 / x_mk
+        r = row[1]['vkr_percent'] * network.sn_mva / row[1]['sn_mva']
+        z = row[1]['vk_percent'] * network.sn_mva / row[1]['sn_mva']
+        x_mk = np.sqrt(z**2 - r**2)
+        b_mk = - x_mk
         if m != k:
             B_real[m,k] = b_mk
             B_real[k,m] = b_mk
