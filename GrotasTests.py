@@ -11,9 +11,9 @@ import GrotasAlgorithm
 from GrotasAlgorithm import GrotasAlgorithm
 from NetworkMatrix import (IEEE14_b_matrix, IEEE118_b_matrix,
                            get_b_matrix_from_network)
-from simulations import (F_score, MSE_matrix, MSE_states, cramer_rao_bound,
+from simulations import (F_score, MSE_matrix, MSE_states, MSE_states_theoretical, cramer_rao_bound,
                          get_observations)
-from utils import get_U_matrix, matprint
+from utils import get_U_matrix, matprint, matwrite
 
 two_phase_enabled = True
 augmented_enabled = False
@@ -164,7 +164,7 @@ def plot_all_MSE_states(all_runs, N_points_arr, range_SNR):
 
 
 def plot_B_matrix(all_runs, N_points_arr, B_real):
-    target_SNR = 15
+    target_SNR = 45 if ieee118 else 15 
 
     for N in N_points_arr:
         if two_phase_enabled:
@@ -305,6 +305,7 @@ def run_cramer_rao_bound(B, sigma_est, sigma_p, sigma_theta, N):
 def run_MSE_states_oracle(observations, B, sigma_theta, sigma_est, states):
     N = observations.shape[0]
     MSE_states_total = MSE_states(observations, B, sigma_theta, sigma_est, states)
+    # matprint(MSE_states_total)
     return{
         "method": 'MSE_oracle',
         "N": N,
@@ -312,19 +313,25 @@ def run_MSE_states_oracle(observations, B, sigma_theta, sigma_est, states):
     }
 
 
-def save_as_jason(all_runs):
+def save_as_json(all_runs):
     serializable_things = []
+    ultimate_b = None
     for run in all_runs:
         new_run = run.copy()
         if 'B' in new_run:
+            ultimate_b = new_run['B']
             del new_run['B']
         serializable_things.append(new_run)
         if 'theta' in new_run:
             del new_run['theta']
         if 'sigma_p' in new_run:
             del new_run['sigma_p']
+        new_run['N'] = int(new_run['N'])
+    print(serializable_things)
     with open("runs/run_{}.json".format(time_now), 'w') as fp:
         json.dump(serializable_things, fp, sort_keys=True, indent=4)
+    if ieee118:
+        matwrite(ultimate_b, "runs/runIEEE118_{}.json".format(time_now))
 
 
 if __name__ == '__main__':
@@ -343,7 +350,7 @@ if __name__ == '__main__':
     if ieee118:
         B_real, A = IEEE118_b_matrix()
         range_SNR = [45]
-        points = np.linspace(200, 1000, 8, dtype=np.integer)
+        points = np.linspace(800, 1000, 2, dtype=np.integer)
         c = np.sqrt(10)
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-10
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-10
@@ -392,10 +399,12 @@ if __name__ == '__main__':
         plot_all_MSE_by_points(MSE_tests, points, range_SNR)
         plot_all_MSE_states_by_points(MSE_tests, points, range_SNR)
         plot_all_fscore_by_points(MSE_tests, points, range_SNR)
+        plot_B_matrix(MSE_tests, points, B_real)
+        save_as_json(MSE_tests)
     else:
         basic_plot_checks(MSE_tests, points, range_SNR)
         plot_B_matrix(MSE_tests, points, B_real)
         plot_all_MSE(MSE_tests, points, range_SNR)
         plot_all_MSE_states(MSE_tests, points, range_SNR)
         plot_all_fscore(MSE_tests, points, range_SNR)
-        save_as_jason(MSE_tests)
+        save_as_json(MSE_tests)

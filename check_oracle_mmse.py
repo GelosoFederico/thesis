@@ -1,10 +1,10 @@
 
-from GrotasTests import run_MSE_states_oracle
+from GrotasTests import run_MSE_states_oracle, run_test
 from NetworkMatrix import IEEE118_b_matrix, IEEE14_b_matrix
 import numpy as np
 import matplotlib
 
-from simulations import get_observations
+from simulations import MSE_states, MSE_states_slow, get_observations
 
 
 B_real, A = IEEE14_b_matrix()
@@ -21,10 +21,21 @@ for SNR in range_SNR:
     run = run_MSE_states_oracle(observations, B_real, sigma_theta, noise_sigma, states)
     run['SNR'] = SNR
     all_mse.append(run)
+    # run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian', states)
+    MSE_states_total = MSE_states_slow(observations, B_real, sigma_theta, noise_sigma, states)
+    run = {
+        "method": 'MSE_oracle_B',
+        "N": N,
+        "MSE_states": MSE_states_total,
+        "SNR": SNR
+    }
+    all_mse.append(run)
 
 plots = []
 legend = []
 plots.append([x['MSE_states'] for x in all_mse if x['method']=='MSE_oracle' and N == x['N']])
+legend.append("oracle, N={}".format(N))
+plots.append([x['MSE_states'] for x in all_mse if x['method']!='MSE_oracle' and N == x['N']])
 legend.append("oracle, N={}".format(N))
 
 
