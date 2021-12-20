@@ -18,9 +18,8 @@ def get_observations(N, SNR, c, B):
 
     # TODO send distribution as param
     theta_created = np.random.default_rng().normal(0, c, (M, N))
-    noise = np.random.default_rng().normal(0, noise_sigma, (M, N))
-    states = B @ theta_created
-    return ((states) + noise).T, sigma_theta, states, noise_sigma
+    noise = np.random.default_rng().normal(0, np.sqrt(noise_sigma), (M, N))
+    return ((B @ theta_created) + noise).T, sigma_theta, theta_created, noise_sigma
 
 
 def stack_matrix(matrix):
@@ -147,7 +146,7 @@ def MSE_states(observations, B, sigma_theta, sigma_error, states):
     M = observations.shape[1]
     # print(estimation - states)
     ones = np.ones((M, 1))
-    return np.sum(ones.T @ np.abs(estimation - states)) / (N )
+    return np.sum((ones.T @ np.abs(estimation - states))**2) / (N ) # Not divided by M
     
     # return np.sum(np.abs(estimation[:,8] - states[:,8]))
 

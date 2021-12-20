@@ -4,25 +4,25 @@ from NetworkMatrix import IEEE118_b_matrix, IEEE14_b_matrix
 import numpy as np
 import matplotlib
 
-from simulations import MSE_states, MSE_states_slow, get_observations
+from simulations import MSE_states, MSE_states_slow, MSE_states_theoretical, get_observations
+from utils import matprint
 
 
-B_real, A = IEEE14_b_matrix()
+B_real, A = IEEE118_b_matrix()
 N = 1500
 c = 1
-range_SNR = np.linspace(-20, 120, 3000)
+range_SNR = np.linspace(-20, 240, 300)
 points = [1500]
 all_mse = []
 for SNR in range_SNR:
+    print(SNR)
     observations, sigma_theta, states, noise_sigma = get_observations(N, SNR, c, B_real)
-    # if SNR > 100:
-    #     noise_sigma = 0
-    B_real, A = IEEE14_b_matrix()
+    # B_real, A = IEEE14_b_matrix()
     run = run_MSE_states_oracle(observations, B_real, sigma_theta, noise_sigma, states)
     run['SNR'] = SNR
     all_mse.append(run)
     # run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian', states)
-    MSE_states_total = MSE_states_slow(observations, B_real, sigma_theta, noise_sigma, states)
+    MSE_states_total = MSE_states_theoretical(observations, B_real, sigma_theta, noise_sigma, states)
     run = {
         "method": 'MSE_oracle_B',
         "N": N,
@@ -33,10 +33,14 @@ for SNR in range_SNR:
 
 plots = []
 legend = []
-plots.append([x['MSE_states'] for x in all_mse if x['method']=='MSE_oracle' and N == x['N']])
+oracle_mse = [np.abs(x['MSE_states']) for x in all_mse if x['method'] == 'MSE_oracle' and N == x['N']]
+other_mse = [np.abs(x['MSE_states']) for x in all_mse if x['method'] != 'MSE_oracle' and N == x['N']]
+for x in (np.array(oracle_mse)/np.array(other_mse)):
+    print(x)
+plots.append([np.abs(x['MSE_states']) for x in all_mse if x['method']=='MSE_oracle' and N == x['N']])
 legend.append("oracle, N={}".format(N))
-plots.append([x['MSE_states'] for x in all_mse if x['method']!='MSE_oracle' and N == x['N']])
-legend.append("oracle, N={}".format(N))
+plots.append([np.abs(x['MSE_states']) for x in all_mse if x['method']!='MSE_oracle' and N == x['N']])
+legend.append("theory, N={}".format(N))
 
 
 fig = matplotlib.pyplot.figure()
