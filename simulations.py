@@ -13,13 +13,15 @@ def get_observations(N, SNR, c, B):
     sigma_theta_tilde = U.T @ sigma_theta @ U
     B_tilde = B[1:M, 1:M]
 
-    noise_sigma = np.trace(B_tilde @ sigma_theta_tilde @
-                           B_tilde) / (10**(SNR/10))
+    noise_sigma_sqr = np.trace(B_tilde @ sigma_theta_tilde @
+                           B_tilde) / (10**(SNR/10.0))
 
     # TODO send distribution as param
     theta_created = np.random.default_rng().normal(0, c, (M, N))
-    noise = np.random.default_rng().normal(0, np.sqrt(noise_sigma), (M, N))
-    return ((B @ theta_created) + noise).T, sigma_theta, theta_created, noise_sigma
+    # uniform_bound = np.sqrt(12*c)/2
+    # theta_created = np.random.uniform(-uniform_bound, uniform_bound, (M, N))
+    noise = np.random.default_rng().normal(0, np.sqrt(noise_sigma_sqr), (M, N))
+    return ((B @ theta_created) + noise).T, sigma_theta, theta_created, noise_sigma_sqr
 
 
 def stack_matrix(matrix):
@@ -118,36 +120,28 @@ def MSE_matrix(matrix_real, matrix_est):
 
 def state_estimator(observations, B, sigma_theta, sigma_error):
     # Grotas eq. 12)
-    """
     M = B.shape[0]
     sigma_w = sigma_error * np.eye(M)
     aux = (B.T @ sigma_theta @ B) + sigma_w
-    # aux_pinv = np.linalg.inv(aux, hermitian=True)
     aux_pinv = np.linalg.inv(aux)
-    # print(f"{sigma_error=}")
-    # print(f"{np.linalg.norm(aux)=}")
-    # print(f"{np.linalg.norm(aux_pinv)=}")
     return sigma_theta @ B @ aux_pinv @ observations.T
-    """
-    M = B.shape[0]
-    sigma_theta_inv = np.linalg.inv(sigma_theta)
-    sigma_w = sigma_error * np.eye(M)
-    sigma_w_inv = np.linalg.inv(sigma_w)
+    # M = B.shape[0]
+    # sigma_theta_inv = np.linalg.inv(sigma_theta)
+    # sigma_w = sigma_error * np.eye(M)
+    # sigma_w_inv = np.linalg.inv(sigma_w)
 
-    aux = sigma_theta_inv + B.T @ sigma_w_inv @ B
-    aux_inv = np.linalg.inv(aux)
-    # matprint(sigma_w_inv)
-    return aux_inv @ B.T @ sigma_w_inv @ observations.T
+    # aux = sigma_theta_inv + B.T @ sigma_w_inv @ B
+    # aux_inv = np.linalg.inv(aux)
+    # # matprint(sigma_w_inv)
+    # return aux_inv @ B.T @ sigma_w_inv @ observations.T
 
 
 def MSE_states(observations, B, sigma_theta, sigma_error, states):
     estimation = state_estimator(observations, B, sigma_theta, sigma_error)
     N = observations.shape[0]
     M = observations.shape[1]
-    # print(estimation - states)
-    ones = np.ones((M, 1))
-    return np.sum((ones.T @ np.abs(estimation - states))**2) / (N ) # Not divided by M
-    
+    return np.sum(np.square(estimation - states)) / (N) # Not divided by M
+
     # return np.sum(np.abs(estimation[:,8] - states[:,8]))
 
 
@@ -158,7 +152,7 @@ def MSE_states_slow(observations, B, sigma_theta, sigma_error, states):
     error_total = 0
     for i in range(N):
         estimation = state_estimator(observations[i, :], B, sigma_theta, sigma_error)
-        error = (states[:, i].T - estimation)**2
+        error = np.square(states[:, i].T - estimation)
         error_total += sum(error) / M
 
     # print(error_total)
@@ -174,3 +168,5 @@ def MSE_states_theoretical(observations, B, sigma_theta, sigma_error, states):
     sigma_w = sigma_error * np.eye(M)
     matrix_MSE = sigma_theta - sigma_theta @ B.T @ np.linalg.inv(B @ sigma_theta @ B.T + sigma_w) @ B @ sigma_theta
     return np.trace(matrix_MSE)
+    # return np.trace(matrix_MSE) * 9.2
+    # return np.trace(matrix_MSE) * 8 / 13

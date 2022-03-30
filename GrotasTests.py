@@ -37,7 +37,7 @@ def plot_all_MSE(all_runs, N_points_arr, range_SNR):
 
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(1, 1, 1)
-    colors = ['red', 'blue', 'black', 'magenta', 'green', 'black']
+    colors = ['red', 'blue', 'black', 'magenta', 'green', 'grey']
     color_gen = (x for x in colors)
     for plot in plots:
         ax.semilogy(range_SNR, plot, color=next(color_gen), lw=1)
@@ -146,10 +146,12 @@ def plot_all_MSE_states(all_runs, N_points_arr, range_SNR):
             legend.append("MSE with augmented Lagrangian, N={}".format(N))
         plots.append([x['MSE_states'] for x in all_runs if x['method'] == 'MSE_oracle' and N == x['N']])
         legend.append("oracle, N={}".format(N))
+    plots.append([x['MSE_states'] for x in all_runs if x['method'] == 'MSE_theory'])
+    legend.append("theory".format(N))
 
     fig = matplotlib.pyplot.figure()
     ax = fig.add_subplot(1, 1, 1)
-    colors = ['red', 'blue', 'black', 'magenta', 'green', 'black']
+    colors = ['red', 'blue', 'black', 'magenta', 'green', 'grey', 'yellow']
     color_gen = (x for x in colors)
     for plot in plots:
         ax.semilogy(range_SNR, plot, color=next(color_gen), lw=1)
@@ -313,6 +315,16 @@ def run_MSE_states_oracle(observations, B, sigma_theta, sigma_est, states):
     }
 
 
+def run_MSE_states_theory(B, sigma_theta, sigma_noise):
+    # B should be real b
+    M = B.shape[0]
+    MSE_states_total = np.trace(sigma_theta - sigma_theta @ B.T @ np.linalg.inv(B @ sigma_theta @ B.T + sigma_noise * np.eye(M)) @ B @ sigma_theta)
+    return{
+        "method": 'MSE_theory',
+        "MSE_states": MSE_states_total
+    }
+
+
 def save_as_json(all_runs):
     serializable_things = []
     ultimate_b = None
@@ -327,8 +339,7 @@ def save_as_json(all_runs):
         if 'sigma_p' in new_run:
             del new_run['sigma_p']
         new_run['N'] = int(new_run['N'])
-    print(serializable_things)
-    with open("runs/run_{}.json".format(time_now), 'w') as fp:
+    with open("runs/run_{}_{}.json".format(time_now, 'IEEE118' if ieee118 else 'IEEE14'), 'w') as fp:
         json.dump(serializable_things, fp, sort_keys=True, indent=4)
     if ieee118:
         matwrite(ultimate_b, "runs/runIEEE118_{}.json".format(time_now))
@@ -360,7 +371,7 @@ if __name__ == '__main__':
         # B_real, A = get_b_matrix_from_network(net)
         B_real, A = IEEE14_b_matrix()
         c = 1
-        range_SNR = np.linspace(0, 25, 21)
+        range_SNR = np.linspace(0, 50, 41)
         points = [200, 1500]
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-7
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-7
@@ -391,6 +402,11 @@ if __name__ == '__main__':
             run = run_MSE_states_oracle(observations, B_real, sigma_theta, noise_sigma, states)
             run['SNR'] = SNR
             MSE_tests.append(run)
+
+        run = run_MSE_states_theory(B_real, sigma_theta, noise_sigma)
+        run['SNR'] = SNR
+        run['N'] = points[0]
+        MSE_tests.append(run)
 
     basic_plot_prints(MSE_tests, points)
 
