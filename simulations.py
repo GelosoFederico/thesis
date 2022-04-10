@@ -21,6 +21,8 @@ def get_observations(N, SNR, c, B):
     # uniform_bound = np.sqrt(12*c)/2
     # theta_created = np.random.uniform(-uniform_bound, uniform_bound, (M, N))
     noise = np.random.default_rng().normal(0, np.sqrt(noise_sigma_sqr), (M, N))
+    # uniform_bound = np.sqrt(noise_sigma_sqr * 3)
+    # noise = np.random.default_rng().uniform(uniform_bound, -uniform_bound, (M, N))
     return ((B @ theta_created) + noise).T, sigma_theta, theta_created, noise_sigma_sqr
 
 

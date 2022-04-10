@@ -276,7 +276,7 @@ def run_test(B_real, observations, sigma_theta, method, states):
     B, theta, sigma_est, sigma_p = GrotasAlgorithm(observations, sigma_theta, method)
     MSE = MSE_matrix(B_real, B)
     fs = F_score(B, B_real)
-    MSE_states_total = MSE_states(observations, B, sigma_theta, sigma_est, states)
+    MSE_states_total = MSE_states(observations, B, sigma_theta, sigma_est**2, states)
     # print(f"{fs=}")
     # print("B_found")
     # matprint(B)
@@ -371,7 +371,7 @@ if __name__ == '__main__':
         # B_real, A = get_b_matrix_from_network(net)
         B_real, A = IEEE14_b_matrix()
         c = 1
-        range_SNR = np.linspace(0, 50, 41)
+        range_SNR = np.linspace(5, 25, 41)
         points = [200, 1500]
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-7
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-7
