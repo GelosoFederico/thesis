@@ -1,6 +1,7 @@
 import argparse
 import json
 from datetime import datetime
+from typing import List
 
 import matplotlib.pyplot
 import numpy as np
@@ -345,17 +346,39 @@ def save_as_json(all_runs):
         matwrite(ultimate_b, "runs/runIEEE118_{}.json".format(time_now))
 
 
+def smooth_MSE_tests(MSE_tests: List[dict]) -> List:
+    new_MSE = []
+    tuples_found = set()
+    for item in MSE_tests:
+        defining_tuple = (item['SNR'], item['N'], item['method'])
+        if defining_tuple not in tuples_found:
+            similar_MSE = [x for x in MSE_tests if x['SNR'] == item['SNR'] and x['N'] == item['N'] and x['method'] == item['method']]
+            averaged_MSE = {
+                'SNR': item['SNR'],
+                'N': item['N'],
+                'method': item['method'],
+            }
+            for key in similar_MSE[0].keys():
+                if key not in ['SNR', 'N', 'method']:
+                    averaged_MSE[key] = np.mean([x[key] for x in similar_MSE], axis=0)
+            tuples_found.add(defining_tuple)
+            new_MSE.append(averaged_MSE)
+    return new_MSE
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ieee14', default=False, action='store_true')
     parser.add_argument('--ieee118', default=False, action='store_true')
     parser.add_argument('--augmented', default=False, action='store_true')
     parser.add_argument('--two_phase', default=False, action='store_true')
+    parser.add_argument('--smoothing_points', default=1, type=int)
     parsed_args = parser.parse_args()
     ieee14 = parsed_args.ieee14
     ieee118 = parsed_args.ieee118
     two_phase_enabled = parsed_args.two_phase
     augmented_enabled = parsed_args.augmented
+    smoothing_points = parsed_args.smoothing_points
 
     MSE_tests = []
     if ieee118:
@@ -371,56 +394,59 @@ if __name__ == '__main__':
         # B_real, A = get_b_matrix_from_network(net)
         B_real, A = IEEE14_b_matrix()
         c = 1
-        range_SNR = np.linspace(5, 25, 41)
+        range_SNR = np.linspace(5, 25, 21)
         points = [200, 1500]
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-7
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-7
 
     MSE_tests = []
-    for SNR in range_SNR:
-        for N in points:
-            sigma_est = None
-            sigma_p = None
-            observations, sigma_theta, states, noise_sigma = get_observations(N, SNR, c, B_real)
-            if augmented_enabled:
-                run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian', states)
+    # smoothing_points = 10
+    for full_run in range(smoothing_points):
+        for SNR in range_SNR:
+            for N in points:
+                sigma_est = None
+                sigma_p = None
+                observations, sigma_theta, states, noise_sigma = get_observations(N, SNR, c, B_real)
+                if augmented_enabled:
+                    run = run_test(B_real, observations, sigma_theta, 'augmented_lagrangian', states)
+                    run['SNR'] = SNR
+                    MSE_tests.append(run)
+                    sigma_est = run['sigma_est']
+                    sigma_p = run['sigma_p']
+                if two_phase_enabled:
+                    run = run_test(B_real, observations, sigma_theta, 'two_phase_topology', states)
+                    run['SNR'] = SNR
+                    MSE_tests.append(run)
+                    sigma_est = run['sigma_est']
+                    sigma_p = run['sigma_p']
+
+                run = run_cramer_rao_bound(B_real, sigma_est, sigma_p, sigma_theta, N)
                 run['SNR'] = SNR
                 MSE_tests.append(run)
-                sigma_est = run['sigma_est']
-                sigma_p = run['sigma_p']
-            if two_phase_enabled:
-                run = run_test(B_real, observations, sigma_theta, 'two_phase_topology', states)
+
+                run = run_MSE_states_oracle(observations, B_real, sigma_theta, noise_sigma, states)
                 run['SNR'] = SNR
                 MSE_tests.append(run)
-                sigma_est = run['sigma_est']
-                sigma_p = run['sigma_p']
 
-            run = run_cramer_rao_bound(B_real, sigma_est, sigma_p, sigma_theta, N)
+            run = run_MSE_states_theory(B_real, sigma_theta, noise_sigma)
             run['SNR'] = SNR
+            run['N'] = points[0]
             MSE_tests.append(run)
 
-            run = run_MSE_states_oracle(observations, B_real, sigma_theta, noise_sigma, states)
-            run['SNR'] = SNR
-            MSE_tests.append(run)
-
-        run = run_MSE_states_theory(B_real, sigma_theta, noise_sigma)
-        run['SNR'] = SNR
-        run['N'] = points[0]
-        MSE_tests.append(run)
-
-    basic_plot_prints(MSE_tests, points)
+    smoothed_MSE_tests = smooth_MSE_tests(MSE_tests)
+    basic_plot_prints(smoothed_MSE_tests, points)
 
     # Now we do every plot in Grotas's paper
     if ieee118:
-        plot_all_MSE_by_points(MSE_tests, points, range_SNR)
-        plot_all_MSE_states_by_points(MSE_tests, points, range_SNR)
-        plot_all_fscore_by_points(MSE_tests, points, range_SNR)
-        plot_B_matrix(MSE_tests, points, B_real)
-        save_as_json(MSE_tests)
+        plot_all_MSE_by_points(smoothed_MSE_tests, points, range_SNR)
+        plot_all_MSE_states_by_points(smoothed_MSE_tests, points, range_SNR)
+        plot_all_fscore_by_points(smoothed_MSE_tests, points, range_SNR)
+        plot_B_matrix(smoothed_MSE_tests, points, B_real)
+        save_as_json(smoothed_MSE_tests)
     else:
-        basic_plot_checks(MSE_tests, points, range_SNR)
-        plot_B_matrix(MSE_tests, points, B_real)
-        plot_all_MSE(MSE_tests, points, range_SNR)
-        plot_all_MSE_states(MSE_tests, points, range_SNR)
-        plot_all_fscore(MSE_tests, points, range_SNR)
-        save_as_json(MSE_tests)
+        basic_plot_checks(smoothed_MSE_tests, points, range_SNR)
+        plot_B_matrix(smoothed_MSE_tests, points, B_real)
+        plot_all_MSE(smoothed_MSE_tests, points, range_SNR)
+        plot_all_MSE_states(smoothed_MSE_tests, points, range_SNR)
+        plot_all_fscore(smoothed_MSE_tests, points, range_SNR)
+        save_as_json(smoothed_MSE_tests)
