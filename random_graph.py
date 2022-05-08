@@ -1,5 +1,7 @@
-# If this turns out to be too difficult, we should use NetworkX
-# https://networkx.org/
+# TODO recheck conditions for values in rt and cluster
+# TODO assing necesary values when we create the random nt
+# TODO recheck probability changes from tiednets added constraints during the algorithm
+# TODO check if values like clustering are correct
 
 import logging
 
@@ -18,9 +20,8 @@ import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 
-def generate_random_rt_nested_network(N: int, K: int, d: int, alpha:float, beta: float, p_rewire: float, N_subnetworks: int):
+def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int):
     # Select size of the network acording to connectivity limitation (23)
-    # 1 - crea
     if N > 30 and K <= 3:
         raise Exception("For k between 2 and 3, N should be less than 30")
     if N > 300 and K <= 5:
@@ -30,27 +31,32 @@ def generate_random_rt_nested_network(N: int, K: int, d: int, alpha:float, beta:
     subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
 
     # Fix numbers in subnet to make them part of the network
+
     last_subnet_num = 0
     subnets_offsets = []
     for subnet in subnetworks:
-        for edges_list in subnet:
-            for i, edge in enumerate(edges_list):
-                edges_list[i] += last_subnet_num
+        subnet_map = {x:x+last_subnet_num for x in range(len(subnet))}
+        nx.relabel_nodes(subnet, subnet_map,copy=False)
 
         subnets_offsets.append(last_subnet_num)
         last_subnet_num += len(subnet)
 
-    # print()
-    # Join them
+    complete_length = sum((len(x) for x in subnetworks))
+    complete_graph: nx.Graph = nx.empty_graph(range(complete_length))
+    for subnet in subnetworks:
+        for edge in subnet.edges():
+            complete_graph.add_edge(edge[0], edge[1])
+
     for i, subnet in enumerate(subnetworks):
         subnet_before = subnetworks[i-1]
-        join_subnets_at_random(subnet, subnet_before, K, subnets_offsets[i], subnets_offsets[i-1])
+        join_subnets_at_random(complete_graph, subnet, subnet_before, K, subnets_offsets[i], subnets_offsets[i-1])
 
-    return subnetworks
+    return complete_graph
 
 
-def join_subnets_at_random(net1: List[List[int]],
-                           net2: List[List[int]],
+def join_subnets_at_random(complete_graph: nx.Graph,
+                           net1: nx.Graph,
+                           net2: nx.Graph,
                            K: int,
                            net1_offset: int,
                            net2_offset: int):
@@ -61,9 +67,8 @@ def join_subnets_at_random(net1: List[List[int]],
         choice2 = random.choice(range(len(net2)))
         choice1_real = choice1 + net1_offset
         choice2_real = choice2 + net2_offset
-        if choice2_real not in net1[choice1] and choice1_real not in net2[choice2]:
-            net1[choice1].append(choice2_real)
-            net2[choice2].append(choice1_real)
+        if not complete_graph.has_edge(choice1_real, choice2_real):
+            complete_graph.add_edge(choice1_real, choice2_real)
             connections += 1
         tries += 1
 
@@ -82,12 +87,18 @@ def remove_edge(graph:List[List], node_from:int, node_to:int):
         graph[node_to].remove(node_from)
 
 
-def generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, max_tries: int=100):
+def generate_random_cluster_small_world_network(N: int,
+                                                K: int,
+                                                d: int,
+                                                alpha: float,
+                                                beta: float,
+                                                p_rewire: float,
+                                                max_tries: int = 100) -> nx.Graph:
     connected = False
     tries = 0
     while not connected:
         graph = _generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire)
-        connected = is_connected_graph(graph, N)
+        connected = nx.is_connected(graph)
         tries += 1
         if tries > max_tries:
             raise Exception("It took more times than allowed to make a connected random cluster small world network")
@@ -96,27 +107,25 @@ def generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: f
     return graph
 
 
-def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float):
-    created_graph = []
-    for i in range(N):
-        created_graph.append([])
+def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float) -> nx.Graph:
+    created_graph: nx.Graph = nx.empty_graph(range(N))
     # We select the number of edges to generate for each neighborhood around each node
     all_ks = np.random.default_rng().geometric(p=1/K, size=N)
     all_ks = [k if k < 2*d else 2*d for k in all_ks]  # In network they would fail if it tries to go further than 2d
     logger.info("Starting link selection")
     for i in range(N):
         k_node = all_ks[i]
-        possible_nodes = [x for x in range(i-d,i+d+1)]
-        possible_nodes = [x % N for x in possible_nodes if x != i]
+        possible_nodes = [x for x in range(i-d,i+d+1)]  # Nodes in the neighborhood
+        possible_nodes = [x % N for x in possible_nodes if x != i]  # Except itself, and use modulo to be circular
         np.random.shuffle(possible_nodes)
         nodes_to_add_edges = possible_nodes[:k_node]
         for to_edge in nodes_to_add_edges:
-            add_edge(created_graph, i, to_edge)
+            created_graph.add_edge(i, to_edge)
     logger.info(f"Graph is now {created_graph}")
 
     # rewiring, literal from tiedNets
     # Markov chain
-    prev_value = 1
+    prev_value = 1  # I don't know where in the paper says it starts at 1. TODO look this up
     markov_results = []
     logger.info("Starting Markov chain")
     for i in range(N):
@@ -143,7 +152,7 @@ def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: 
                 clusters.append([])
             if i == 0:
                 starts_with_cluster = True
-            if i == N:
+            if i == N-1:
                 ends_with_cluster = True
             clusters[-1].append(i)
         else:
@@ -162,22 +171,27 @@ def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: 
             for node in cluster:
                 for cluster in other_clusters:
                     for other_node in cluster:
-                        if other_node not in created_graph[node]:
+                        if not created_graph.has_edge(node, other_node):
                             possible_nodes_in_other_clusters.append(other_node)
-                for edge in created_graph[node]:
-                    # edge is the other node to which this points to
-                    if edge in cluster and random.random() < p_rewire:
-                        remove_edge(created_graph, node, edge)
+                to_delete = []
+                to_add = []
+                for edge in created_graph.edges(node):
+                    other_node = [x for x in edge if x != node][0]
+                    random_number = random.random()
+                    if other_node in cluster and random_number < p_rewire:
+                        to_delete.append((node, other_node))
                         new_edge = random.choice(possible_nodes_in_other_clusters)
-                        add_edge(created_graph, node, new_edge)
+                        to_add.append((node, new_edge))
                         logger.info(f"Rewiring in node {node} from {edge} to {new_edge}")
+                    else:
+                        logger.info(f"Not rewiring in node {node} from {edge} with values {random_number}, {other_node in cluster}")
+
+                for edge in to_delete:
+                    created_graph.remove_edge(edge[0], edge[1])
+                for edge in to_add:
+                    created_graph.add_edge(edge[0], edge[1])
+
     logger.info("Finished rewiring")
-
-
-
-
-
-
     return created_graph
 
 
@@ -262,17 +276,18 @@ def is_connected_graph(graph: list, N: int):
 if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
+    # le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
     le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
-    print(le_graph)
-    # print(generate_random_cluster_small_world_network(14, 2, 4))
-    G = nx.empty_graph(range(n_nodes * n_subnets))
-    last_subnet_num = 0
-    for subnet in le_graph:
-        for i, node in enumerate(subnet):
-            pos = i + last_subnet_num
-            for edge in node:
-                if not G.has_edge(pos, edge):
-                    G.add_edge(pos, edge)
-        last_subnet_num += len(subnet)
-    nx.draw_circular(G, with_labels=True)
+    # print(le_graph)
+    # # print(generate_random_cluster_small_world_network(14, 2, 4))
+    # G = nx.empty_graph(range(n_nodes * n_subnets))
+    # last_subnet_num = 0
+    # for subnet in le_graph:
+    #     for i, node in enumerate(subnet):
+    #         pos = i + last_subnet_num
+    #         for edge in node:
+    #             if not G.has_edge(pos, edge):
+    #                 G.add_edge(pos, edge)
+    #     last_subnet_num += len(subnet)
+    nx.draw_circular(le_graph, with_labels=True)
     plt.show()
