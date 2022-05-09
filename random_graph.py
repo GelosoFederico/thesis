@@ -44,8 +44,8 @@ def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta
     complete_length = sum((len(x) for x in subnetworks))
     complete_graph: nx.Graph = nx.empty_graph(range(complete_length))
     for subnet in subnetworks:
-        for edge in subnet.edges():
-            complete_graph.add_edge(edge[0], edge[1])
+        for edge in subnet.edges(data=True):
+            complete_graph.add_edge(edge[0], edge[1], group=edge[2]['group'])
 
     for i, subnet in enumerate(subnetworks):
         subnet_before = subnetworks[i-1]
@@ -68,7 +68,7 @@ def join_subnets_at_random(complete_graph: nx.Graph,
         choice1_real = choice1 + net1_offset
         choice2_real = choice2 + net2_offset
         if not complete_graph.has_edge(choice1_real, choice2_real):
-            complete_graph.add_edge(choice1_real, choice2_real)
+            complete_graph.add_edge(choice1_real, choice2_real, group='lattice-conn')
             connections += 1
         tries += 1
 
@@ -110,17 +110,27 @@ def generate_random_cluster_small_world_network(N: int,
 def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float) -> nx.Graph:
     created_graph: nx.Graph = nx.empty_graph(range(N))
     # We select the number of edges to generate for each neighborhood around each node
-    all_ks = np.random.default_rng().geometric(p=1/K, size=N)
-    all_ks = [k if k < 2*d else 2*d for k in all_ks]  # In network they would fail if it tries to go further than 2d
+    all_ks = []
+    for i in range(N):
+        found = False
+        while not found:
+            new_contender = np.random.default_rng().geometric(p=1/K)
+            if new_contender < 2 * d:
+                found = True
+                all_ks.append(new_contender)
+    # as we are not getting a real geometric distribution, we will print the curren expectance
+    p = 1 / K
+    real_k = sum((x * p * np.power((1 - p), x - 1) for x in range(2 * d))) / (1 - np.power(1 - p, 2))
+    logger.info(f"Real K is {real_k:.2f}")
     logger.info("Starting link selection")
     for i in range(N):
         k_node = all_ks[i]
-        possible_nodes = [x for x in range(i-d,i+d+1)]  # Nodes in the neighborhood
+        possible_nodes = [x for x in range(i - d, i + d + 1)]  # Nodes in the neighborhood
         possible_nodes = [x % N for x in possible_nodes if x != i]  # Except itself, and use modulo to be circular
         np.random.shuffle(possible_nodes)
         nodes_to_add_edges = possible_nodes[:k_node]
         for to_edge in nodes_to_add_edges:
-            created_graph.add_edge(i, to_edge)
+            created_graph.add_edge(i, to_edge, group='local')
     logger.info(f"Graph is now {created_graph}")
 
     # rewiring, literal from tiedNets
@@ -189,7 +199,7 @@ def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: 
                 for edge in to_delete:
                     created_graph.remove_edge(edge[0], edge[1])
                 for edge in to_add:
-                    created_graph.add_edge(edge[0], edge[1])
+                    created_graph.add_edge(edge[0], edge[1], group='rewire')
 
     logger.info("Finished rewiring")
     return created_graph
@@ -277,7 +287,9 @@ if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
     # le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
-    le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
+    le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.4, 0.4, 0.5, n_subnets)
+    for edge in le_graph.edges(data=True):
+        print(edge)
     # print(le_graph)
     # # print(generate_random_cluster_small_world_network(14, 2, 4))
     # G = nx.empty_graph(range(n_nodes * n_subnets))
