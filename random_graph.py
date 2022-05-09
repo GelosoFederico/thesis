@@ -13,14 +13,16 @@ handler.setFormatter(formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.INFO)
 
-from typing import List
+from typing import List, Tuple
 import random
 
 import numpy as np
 import networkx as nx
 import matplotlib.pyplot as plt
 
-def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int):
+
+def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float]):
+
     # Select size of the network acording to connectivity limitation (23)
     if N > 30 and K <= 3:
         raise Exception("For k between 2 and 3, N should be less than 30")
@@ -31,7 +33,6 @@ def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta
     subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
 
     # Fix numbers in subnet to make them part of the network
-
     last_subnet_num = 0
     subnets_offsets = []
     for subnet in subnetworks:
@@ -40,17 +41,40 @@ def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta
 
         subnets_offsets.append(last_subnet_num)
         last_subnet_num += len(subnet)
-
     complete_length = sum((len(x) for x in subnetworks))
     complete_graph: nx.Graph = nx.empty_graph(range(complete_length))
     for subnet in subnetworks:
         for edge in subnet.edges(data=True):
             complete_graph.add_edge(edge[0], edge[1], group=edge[2]['group'])
 
+    # Join subnets
     for i, subnet in enumerate(subnetworks):
         subnet_before = subnetworks[i-1]
         join_subnets_at_random(complete_graph, subnet, subnet_before, K, subnets_offsets[i], subnets_offsets[i-1])
 
+    # Assign impedance values
+    # First we generate them
+    # TODO neither scipy nor numpy have the double pareto distribution, nor they can clip them.
+    # So we use lognormal and clip them ourselves.
+    # TODO send distribution as parameter to this function
+    impedance_values = []
+    for edge in complete_graph.edges():
+        found = False
+        while not found:
+            value_candidate = np.random.lognormal(distribution_params[0], distribution_params[1])
+            if value_candidate < distribution_params[2]:
+                impedance_values.append(value_candidate)
+                found = True
+    impedance_values.sort()
+    lattice_conn = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'lattice-conn']
+    rewire = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'rewire']
+    local = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'local']
+    random.shuffle(lattice_conn)
+    random.shuffle(rewire)
+    random.shuffle(local)
+    all_edges = lattice_conn + rewire + local
+    for edge in all_edges:
+        nx.set_edge_attributes(complete_graph, {(edge[0], edge[1]): {'value': impedance_values.pop()}})
     return complete_graph
 
 
@@ -135,7 +159,7 @@ def _generate_random_cluster_small_world_network(N: int, K: int, d: int, alpha: 
 
     # rewiring, literal from tiedNets
     # Markov chain
-    prev_value = 1  # I don't know where in the paper says it starts at 1. TODO look this up
+    prev_value = 1  # Nowhere in the paper explicitly says it starts at 1.
     markov_results = []
     logger.info("Starting Markov chain")
     for i in range(N):
@@ -287,7 +311,7 @@ if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
     # le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
-    le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.4, 0.4, 0.5, n_subnets)
+    le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.4, 0.4, 0.8, n_subnets, (-2.4, 2.1, 2.0))
     for edge in le_graph.edges(data=True):
         print(edge)
     # print(le_graph)
@@ -301,5 +325,5 @@ if __name__ == '__main__':
     #             if not G.has_edge(pos, edge):
     #                 G.add_edge(pos, edge)
     #     last_subnet_num += len(subnet)
-    nx.draw_circular(le_graph, with_labels=True)
+    nx.draw_circular(le_graph, with_labels=True)  # TODO draw edges with different colors separating by group
     plt.show()
