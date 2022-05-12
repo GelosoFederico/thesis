@@ -307,6 +307,27 @@ def is_connected_graph(graph: list, N: int):
     return len(marked_nodes) == N
 
 
+def dpln_distribution(alpha: float, beta: float, nu: float, tau: float, size: np.matrix=None):
+    """
+    Definition based on
+    The Double Pareto-Lognormal Distribution – A New Parametric Model for Size Distributions, 
+    William J. Reed and Murray Jorgensen, 2000
+
+    We obtain X as X = U*V_1/V_2
+    where
+    log(U) ~ N(nu, tau**2)
+    V_1 ~ pareto(alpha)
+    V_2 ~ pareto(beta)
+
+    TODO check if this pareto is the same used in the paper
+    """
+    lognormal = np.random.lognormal(nu, tau, size)
+    pareto_1 = np.random.pareto(alpha, size)
+    pareto_2 = np.random.pareto(beta, size)
+
+    return lognormal * pareto_1 / pareto_2
+
+
 if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
