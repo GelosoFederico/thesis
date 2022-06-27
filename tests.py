@@ -1,6 +1,7 @@
 from NetworkMatrix import IEEE14_b_matrix
-from utils import get_U_matrix, matprint
+from utils import create_matrix_from_nx_graph, get_U_matrix, matprint
 import numpy as np
+import networkx as nx
 import simulations
 
 def test_stack_matrix():
@@ -47,3 +48,12 @@ def test_u_matrix_equation_5():
     threshold = min(np.diag(B))
 
     assert (np.abs(B - (U @ B_tilde @ U.T)) < threshold/10).all()
+
+def test_matrix_from_graph():
+    g: nx.Graph = nx.empty_graph(range(4))
+    g.add_edge(0,1, value=10)
+    g.add_edge(2,3, value=1)
+    matrix = create_matrix_from_nx_graph(g)
+    test_m = np.array([[10,-10,0,0],[-10,10,0,0],[0,0,1,-1],[0,0,-1,1]])
+    threshold = min(np.diag(test_m))
+    assert ((matrix - test_m) < threshold/10).all()

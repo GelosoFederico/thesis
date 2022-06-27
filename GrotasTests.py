@@ -12,9 +12,10 @@ import GrotasAlgorithm
 from GrotasAlgorithm import GrotasAlgorithm
 from NetworkMatrix import (IEEE14_b_matrix, IEEE118_b_matrix,
                            get_b_matrix_from_network)
+from random_graph import generate_random_rt_nested_network
 from simulations import (F_score, MSE_matrix, MSE_states, MSE_states_theoretical, cramer_rao_bound,
                          get_observations)
-from utils import get_U_matrix, matprint, matwrite
+from utils import create_matrix_from_nx_graph, get_U_matrix, matprint, matwrite
 
 two_phase_enabled = True
 augmented_enabled = False
@@ -372,6 +373,7 @@ if __name__ == '__main__':
     parser.add_argument('--ieee118', default=False, action='store_true')
     parser.add_argument('--augmented', default=False, action='store_true')
     parser.add_argument('--two_phase', default=False, action='store_true')
+    # parser.add_argument('--random', default=True, action='store_true')
     parser.add_argument('--smoothing_points', default=1, type=int)
     parsed_args = parser.parse_args()
     ieee14 = parsed_args.ieee14
@@ -388,7 +390,7 @@ if __name__ == '__main__':
         c = np.sqrt(10)
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-10
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-10
-    else:
+    elif ieee14:
         # net = pandapower.networks.case14()
         # pandapower.runpp(net)
         # B_real, A = get_b_matrix_from_network(net)
@@ -398,6 +400,20 @@ if __name__ == '__main__':
         points = [200, 1500]
         GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-7
         GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-7
+    else:
+        # Random matrix
+        n_nodes = 14
+        n_subnets = 4
+        graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.4, 0.4, 0.8, n_subnets, (-2.4, 2.1, 2.0))
+        B_real, A = create_matrix_from_nx_graph(graph)
+        c = 1
+        range_SNR = np.linspace(5, 25, 21)
+        points = [200, 1500]
+        GrotasAlgorithm.augmented_lagrangian_penalty_parameter = 1e-7
+        GrotasAlgorithm.augmented_lagrangian_learning_rate = 1e-7
+
+
+
 
     MSE_tests = []
     # smoothing_points = 10

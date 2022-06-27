@@ -5,6 +5,8 @@
 
 import logging
 
+from utils import create_matrix_from_nx_graph
+
 logger = logging.getLogger()
 handler = logging.StreamHandler()
 formatter = logging.Formatter(
@@ -332,7 +334,7 @@ if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
     # le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.6, 0.6, 0.5, n_subnets)
-    le_graph = generate_random_rt_nested_network(n_nodes, 2, 2, 0.4, 0.4, 0.8, n_subnets, (-2.4, 2.1, 2.0))
+    le_graph = generate_random_rt_nested_network(n_nodes, 2, 4, 0.5, 0.4, 0.8, n_subnets, (-2.4, 2.1, 2.0))
     for edge in le_graph.edges(data=True):
         print(edge)
     # print(le_graph)
@@ -347,4 +349,7 @@ if __name__ == '__main__':
     #                 G.add_edge(pos, edge)
     #     last_subnet_num += len(subnet)
     nx.draw_circular(le_graph, with_labels=True)  # TODO draw edges with different colors separating by group
+    plt.show()
+    mat = create_matrix_from_nx_graph(le_graph)
+    plt.matshow(mat)
     plt.show()
