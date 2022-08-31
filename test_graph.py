@@ -1,4 +1,4 @@
-from random_graph import is_connected_graph
+from random_graph_rt_nested import is_connected_graph
 
 
 def test_connected_graph():

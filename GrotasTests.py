@@ -12,7 +12,7 @@ import GrotasAlgorithm
 from GrotasAlgorithm import GrotasAlgorithm
 from NetworkMatrix import (IEEE14_b_matrix, IEEE118_b_matrix,
                            get_b_matrix_from_network)
-from random_graph import generate_random_rt_nested_network
+from random_graph_rt_nested import generate_random_rt_nested_network
 from simulations import (F_score, MSE_matrix, MSE_states, MSE_states_theoretical, cramer_rao_bound,
                          get_observations)
 from utils import create_matrix_from_nx_graph, get_U_matrix, matprint, matwrite
