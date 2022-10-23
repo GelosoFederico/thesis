@@ -225,9 +225,9 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
     # print(graph_hyper)
     # print(default_hyper)
     rt_parameters = {**default_hyper, **graph_hyper}
-    for key, value in default_hyper.items():
-        if rt_parameters[key] != value:
-            print(f"Using non default value {rt_parameters[key]} instead of {value} for {key}")
+    # for key, value in default_hyper.items():
+    #     if rt_parameters[key] != value:
+    #         print(f"Using non default value {rt_parameters[key]} instead of {value} for {key}")
     subnet_nodes_num = round(num_nodes / rt_parameters['n_subnets'])
     logger.debug(f"subnet_nodes_num {subnet_nodes_num}")
     logger.debug(f"num_nodes {num_nodes}")

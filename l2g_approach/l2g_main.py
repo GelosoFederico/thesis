@@ -2,7 +2,9 @@
 This is from https://github.com/xpuoxford/L2G-neurips2021
 with some changes to go with our rt nested graphs
 """
+import json
 from datetime import datetime
+from numpy import average
 import torch
 import torch.optim as optim
 import torch.optim.lr_scheduler as lr_scheduler
@@ -11,6 +13,7 @@ import pickle
 from src.models import *
 from src.utils import *
 from src.utils_data import *
+from src.utils_grotas import F_score
 import time
 import logging
 
@@ -21,6 +24,7 @@ from scipy.spatial.distance import squareform
 def main():
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
+    run_comments = []
 
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
@@ -64,7 +68,7 @@ def main():
             'n_subnets': 4,
             'p_rewire': 0.3
         }
-        num_samples=1064
+        num_samples=16064
 
         num_signals=3000
         # N = int(graph_size / graph_hyper['k'])
@@ -95,11 +99,11 @@ def main():
     for _, W in test_loader:
         eg = torch_sqaureform_to_matrix(W, device='cpu')
 
-    plt.figure()
-    sns.heatmap(eg[4])
+    # plt.figure()
+    # sns.heatmap(eg[4])
     
-    plt.savefig('plots/heatmap_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.savefig('plots/heatmap_{}_{}.png'.format(graph_type, time_now))
+    # plt.show()
 
 
 
@@ -125,7 +129,7 @@ def main():
     logging.info(net)
 
     # Training:
-    n_epochs = 50 # 300 default
+    n_epochs = 200 # 300 default
 
     run_values = {
         'graph_algorithm': graph_type,
@@ -142,7 +146,6 @@ def main():
         'n_epochs': n_epochs,
     }
     run_lines = [f"{k}: {v}" for k, v in run_values.items()]
-    import json
     with open(f"plots/run_values_{graph_type}_{time_now}.txt",'w') as f:
         json.dump(run_values, f, indent=4)
         # f.writelines(run_lines)
@@ -275,7 +278,6 @@ def main():
                                                               graph_type,
                                                               time_now)
 
-
     with open(result_path, 'wb') as handle:
         pickle.dump(result, handle, protocol=4)
 
@@ -306,8 +308,45 @@ def main():
     plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
     plt.show()
 
-    # get f-score average on test samples
-    # get gmse average on test samples
+    f_score_average = get_f_score_average(w_gt_batch, w_pred)
+    gmse_average = get_gmse_average(w_gt_batch, w_pred)
+    result['gmse_average'] = gmse_average
+    result['f_score_average'] = f_score_average
+
+    # We do this to ensure objects are json serializable. Mostly for float32.
+    for k, v in result.items():
+        try:
+            result[k] = v.item()
+        except Exception:
+            try:
+                result[k] = [x.item() for x in v]
+            except Exception:
+                pass
+
+    whole_data = {
+        "parameters": run_values,
+        "results": result,
+        "comments": run_comments
+    }
+
+    with open(f"plots/run_results_data_{graph_type}_{time_now}.json", 'w') as f:
+        json.dump(whole_data, f, indent=4)
+
+
+def get_f_score_average(groundtruth, prediction):
+    all_scores = []
+    for i, _ in enumerate(groundtruth):
+        all_scores.append(F_score(squareform(groundtruth[i,:].detach().cpu().numpy()),
+                          squareform(prediction[i,:].detach().cpu().numpy())))
+    return average(all_scores)
+
+
+def get_gmse_average(groundtruth, prediction):
+    all_scores = []
+    for i, _ in enumerate(groundtruth):
+        all_scores.append(gmse_loss_batch_mean(groundtruth[i,:],
+                          prediction[i,:]).detach().cpu().numpy())
+    return average(all_scores)
 
 
 if __name__ == "__main__":
