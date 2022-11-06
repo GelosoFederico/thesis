@@ -1,4 +1,5 @@
 
+import json
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -169,6 +170,14 @@ class learn2graph(nn.Module):
         nn.init.ones_(self.alpha)
 
         self.vae = TopoDiffVAE(graph_size, n_hid, n_latent, n_nodeFeat, n_graphFeat)
+        self.base_info_for_json = {
+            "num_unroll": num_unroll,
+            "graph_size": graph_size,
+            "n_hid": n_hid,
+            "n_latent": n_latent,
+            "n_nodeFeat": n_nodeFeat,
+            "n_graphFeat": n_graphFeat,
+        }  # This is here to make it easier to save this networks
 
     def prox_log_barrier(self, y, gn, alpha):
         up = y ** 2 + 4 * gn * alpha
@@ -266,6 +275,26 @@ class learn2graph(nn.Module):
         w_list[:, i, :] = w
 
         return w_list
+
+    def save_to_disk(self, file_name: str):
+        torch.save({"model_state_dict": self.state_dict()}, f"{file_name}_base.pth")
+        torch.save({"model_state_dict": self.vae.state_dict()}, f"{file_name}_vae.pth")
+        with open(f"{file_name}_info.json", 'w') as f:
+            json.dump(self.base_info_for_json, f)
+
+
+def load_l2g_from_disk(file_name: str) -> learn2graph:
+    with open(f"{file_name}_info.json") as f:
+        base = json.load(f)
+
+    model_base = learn2graph(**base)
+    model_base.load_state_dict(torch.load(f"{file_name}_base.pth")["model_state_dict"])
+    base.pop('num_unroll')
+    model_vae = TopoDiffVAE(**base)
+    model_vae.load_state_dict(torch.load(f"{file_name}_vae.pth")["model_state_dict"])
+    model_base.vae = model_vae
+
+    return model_base
 
 
 #%%

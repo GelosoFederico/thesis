@@ -5,5 +5,6 @@ l2g_approach/venv/*
 l2g_approach/data/*
 l2g_approach/logs/*
 l2g_approach/plots/*
+l2g_approach/plots_load/*
 l2g_approach/saved_model/*
 l2g_approach/saved_results/*

@@ -1,5 +1,6 @@
 
 import random
+from numpy import ndarray
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import random_split
 
@@ -40,18 +41,9 @@ def data_loading(dir_dataset, batch_size = None, train_prop=0.8):
 
     # In order to assure everything fits in the batch size, we will make them according to that
     test_size = batch_size * 2
-    # if num_samples < batch_size * 2:
-    #     raise ValueError("Batch size too big for test_size. We assume test size is 2 * batch_size, so we have no samples left")
     num_samples -= test_size
     train_size = int(train_prop * num_samples)
-    # train_size = (train_size // batch_size) * batch_size
     val_size = int(num_samples - train_size)
-    # val_size = (val_size // batch_size) * batch_size
-    # if train_size == 0:
-    #     raise ValueError("Train size ended up as 0")
-    # if val_size == 0:
-    #     raise ValueError("Val size ended up as 0")
-    # extra_size = num_samples - train_size - val_size
 
     # data = TensorDataset(torch.Tensor(dataset['z'][:train_size + val_size + test_size]), torch.Tensor(w[:train_size + val_size + test_size]))
     data = TensorDataset(torch.Tensor(dataset['z']), torch.Tensor(w))
@@ -228,15 +220,15 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
     # for key, value in default_hyper.items():
     #     if rt_parameters[key] != value:
     #         print(f"Using non default value {rt_parameters[key]} instead of {value} for {key}")
-    subnet_nodes_num = round(num_nodes / rt_parameters['n_subnets'])
-    logger.debug(f"subnet_nodes_num {subnet_nodes_num}")
+    # subnet_nodes_num = round(num_nodes / rt_parameters['n_subnets'])
+    # logger.debug(f"subnet_nodes_num {subnet_nodes_num}")
     logger.debug(f"num_nodes {num_nodes}")
 
     G = None
     while not G:
         try:
             G = generate_random_rt_nested_network(
-                subnet_nodes_num,
+                num_nodes,
                 K=rt_parameters['k'],
                 d=rt_parameters['d'],
                 alpha=rt_parameters['alpha'],
@@ -247,9 +239,9 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
             )
         except Exception as e:
             logger.info(f"Exception {e} while creating graph")
-    subnet_nodes_num = round(num_nodes / rt_parameters['n_subnets'])
-    real_n_nodes = subnet_nodes_num * rt_parameters['n_subnets']
-    logger.debug(f"real_n_nodes {subnet_nodes_num}")
+    # subnet_nodes_num = round(num_nodes / rt_parameters['n_subnets'])
+    # real_n_nodes = subnet_nodes_num * rt_parameters['n_subnets']
+    # logger.debug(f"real_n_nodes {subnet_nodes_num}")
     logger.debug(f"num_nodes {num_nodes}")
 
     # G = nx.watts_strogatz_graph(num_nodes, k = graph_hyper['k'], p = graph_hyper['p'] )
@@ -268,24 +260,25 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
     # if weight_scale:
     #     W_GT = W_GT * num_nodes / np.sum(W_GT)
 
-    logger.debug(np.ones(real_n_nodes).shape)
-    logger.debug(real_n_nodes)
-    L_GT = np.diag(W_GT.getA() @ np.ones(real_n_nodes)) - W_GT.getA()
-    # L_GT_2 = np.diag(W_GT_2 @ np.ones(real_n_nodes)) - W_GT_2
+    return get_z_and_w_gt(W_GT, num_nodes, num_signals)
 
+
+def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None):
+    if A is None:
+        A = W_GT.getA()
+    L_GT = np.diag(A @ np.ones(num_nodes)) - A
     W_GT = scipy.sparse.csr_matrix(W_GT)
-    # W_GT_2 = scipy.sparse.csr_matrix(W_GT_2)
-
-    cov = np.linalg.inv(L_GT + (1e-04) * np.eye(real_n_nodes))
-    # cov_2 = np.linalg.inv(L_GT_2 + (1e-04) * np.eye(real_n_nodes))
-    #signal = np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals)
-    #z = get_distance_halfvector(signal)
-
-    # signal = np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals)
-    z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(real_n_nodes), cov, num_signals))
-    # z2 = get_distance_halfvector(np.random.multivariate_normal(np.zeros(real_n_nodes), cov_2, num_signals))
-
+    cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
+    z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))
     return z, W_GT
+
+def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
+    L_GT = np.diag(W_GT.A @ np.ones(num_nodes)) - W_GT.A
+    W_GT = scipy.sparse.csr_matrix(W_GT)
+    cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
+    z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))
+    return z, W_GT
+
 
 def generate_WS_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale) -> dict:
     logger.info("generating WS graphs")
@@ -454,5 +447,11 @@ def generate_SBM100noise_parallel(num_samples, num_nodes, num_signals, graph_hyp
     }
 
     return result
+
+def get_a_from_matrix(mat):
+    new_mat = (mat != 0) * 1
+    np.fill_diagonal(new_mat, 0)
+    return new_mat
+
 
 #%%

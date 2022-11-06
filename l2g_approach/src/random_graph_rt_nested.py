@@ -25,15 +25,33 @@ import matplotlib.pyplot as plt
 
 def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float]):
 
+    extra_random_clusters = False
+    avg_subnetwork_N = N / N_subnetworks
     # Select size of the network acording to connectivity limitation (23)
-    if N > 30 and K <= 3:
-        raise Exception("For k between 2 and 3, N should be less than 30")
-    if N > 300 and K <= 5:
-        raise Exception("For k between 4 and 5, N should be less than 300")
+    if avg_subnetwork_N > 30 and K <= 3:
+        raise Exception("For k between 2 and 3, avg_subnetwork_N should be less than 30")
+    if avg_subnetwork_N > 300 and K <= 5:
+        raise Exception("For k between 4 and 5, avg_subnetwork_N should be less than 300")
 
-    # logger.info(locals())
     # Create subnetworks
-    subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
+    left_nodes = N
+    rounded_subnet_n = round(N / N_subnetworks)
+    subnetworks = []
+    for i in range(N_subnetworks):
+        if left_nodes > rounded_subnet_n:
+            subnet_n = rounded_subnet_n
+            if extra_random_clusters:
+                subnet_n += random.randint(-1, 1)
+        else:
+            subnet_n = left_nodes
+        if i == N_subnetworks-1:
+            subnet_n = left_nodes
+        # print(subnet_n)
+        left_nodes -= subnet_n
+        subnetworks.append(generate_random_cluster_small_world_network(subnet_n, K, d, alpha, beta, p_rewire))
+
+
+    # subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
 
     # Fix numbers in subnet to make them part of the network
     last_subnet_num = 0

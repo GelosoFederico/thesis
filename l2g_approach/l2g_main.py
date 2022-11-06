@@ -27,9 +27,9 @@ def main():
     run_comments = []
 
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-
-    graph_type = 'WS'
-    graph_size = 52 # default 50
+    # graph_type = 'WS'
+    graph_type = 'rt_nested'
+    graph_size = 57 # default 50
     num_unroll = 20
 
     logging.basicConfig(filename='logs/L2G_{}_m{}_x{}.log'.format(graph_type, graph_size, num_unroll),
@@ -45,8 +45,6 @@ def main():
     logging.getLogger().addHandler(console)
 
     # generate synthetic WS graphs
-    # graph_type = 'WS'
-    graph_type = 'rt_nested'
     edge_type = 'lognormal'
 
     if graph_type == 'WS':
@@ -65,10 +63,10 @@ def main():
         # TODO get true hyperparams
         graph_hyper = {
             'k': 3,
-            'n_subnets': 4,
-            'p_rewire': 0.3
+            'n_subnets': 5,
+            'p_rewire': 0.2
         }
-        num_samples=16064
+        num_samples=32064
 
         num_signals=3000
         # N = int(graph_size / graph_hyper['k'])
@@ -331,6 +329,8 @@ def main():
 
     with open(f"plots/run_results_data_{graph_type}_{time_now}.json", 'w') as f:
         json.dump(whole_data, f, indent=4)
+
+    net.save_to_disk(f"saved_model/net_{time_now}")
 
 
 def get_f_score_average(groundtruth, prediction):

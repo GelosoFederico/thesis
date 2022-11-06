@@ -330,6 +330,14 @@ def dpln_distribution(alpha: float, beta: float, nu: float, tau: float, size: np
     return lognormal * pareto_1 / pareto_2
 
 
+def get_matrix_from_nt_graph(G: nx.Graph):
+    for edge in G.edges():
+        G[edge[0]][edge[1]]['weight'] = -G[edge[0]][edge[1]]['value']
+    matrix = nx.to_numpy_matrix(G)
+    print(matrix)
+    return matrix
+
+
 if __name__ == '__main__':
     n_nodes = 14
     n_subnets = 4
@@ -337,6 +345,7 @@ if __name__ == '__main__':
     le_graph = generate_random_rt_nested_network(n_nodes, 2, 4, 0.5, 0.4, 0.8, n_subnets, (-2.4, 2.1, 2.0))
     for edge in le_graph.edges(data=True):
         print(edge)
+    matr = get_matrix_from_nt_graph(le_graph)
     # print(le_graph)
     # # print(generate_random_cluster_small_world_network(14, 2, 4))
     # G = nx.empty_graph(range(n_nodes * n_subnets))
@@ -350,6 +359,6 @@ if __name__ == '__main__':
     #     last_subnet_num += len(subnet)
     nx.draw_circular(le_graph, with_labels=True)  # TODO draw edges with different colors separating by group
     plt.show()
-    mat = create_matrix_from_nx_graph(le_graph)
-    plt.matshow(mat)
-    plt.show()
+    # mat = create_matrix_from_nx_graph(le_graph)
+    # plt.matshow(mat)
+    # plt.show()
