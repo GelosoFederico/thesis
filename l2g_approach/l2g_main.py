@@ -29,6 +29,7 @@ def main():
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     # graph_type = 'WS'
     graph_type = 'rt_nested'
+    # graph_type = 'ieee57'
     graph_size = 57 # default 50
     num_unroll = 20
 
@@ -50,7 +51,7 @@ def main():
     if graph_type == 'WS':
         graph_hyper = {'k': 5, # default k=5
                     'p': 0.4}
-        num_samples = 32064 # default 8064
+        num_samples = 16064 # default 8064
         num_signals = 3000 # default 3000
 
         data = generate_WS_parallel(num_samples=num_samples,
@@ -59,14 +60,14 @@ def main():
                                     graph_hyper=graph_hyper,
                                     weighted=edge_type,
                                     weight_scale=True)
-    else:
+    elif graph_type == 'rt_nested':
         # TODO get true hyperparams
         graph_hyper = {
-            'k': 3,
+            'k': 2,
             'n_subnets': 5,
-            'p_rewire': 0.2
+            'p_rewire': 0.4
         }
-        num_samples=32064
+        num_samples=16064
 
         num_signals=3000
         # N = int(graph_size / graph_hyper['k'])
@@ -75,6 +76,16 @@ def main():
                                     num_signals=num_signals,
                                     num_nodes=graph_size,
                                     graph_hyper=graph_hyper,
+                                    weighted=edge_type,
+                                    weight_scale=True)
+    else:
+        num_samples=8064
+        num_signals=3000
+        graph_hyper = {}
+        data = generate_57_ieee_parallel(num_samples=num_samples,
+                                    num_signals=num_signals,
+                                    num_nodes=graph_size,
+                                    graph_hyper={},
                                     weighted=edge_type,
                                     weight_scale=True)
 
@@ -96,14 +107,6 @@ def main():
 
     for _, W in test_loader:
         eg = torch_sqaureform_to_matrix(W, device='cpu')
-
-    # plt.figure()
-    # sns.heatmap(eg[4])
-    
-    # plt.savefig('plots/heatmap_{}_{}.png'.format(graph_type, time_now))
-    # plt.show()
-
-
 
     num_unroll = 20
     # graph_size = 50
@@ -127,7 +130,7 @@ def main():
     logging.info(net)
 
     # Training:
-    n_epochs = 200 # 300 default
+    n_epochs = 50 # 300 default
 
     run_values = {
         'graph_algorithm': graph_type,
@@ -143,7 +146,6 @@ def main():
         'lr_decay': lr_decay,
         'n_epochs': n_epochs,
     }
-    run_lines = [f"{k}: {v}" for k, v in run_values.items()]
     with open(f"plots/run_values_{graph_type}_{time_now}.txt",'w') as f:
         json.dump(run_values, f, indent=4)
         # f.writelines(run_lines)

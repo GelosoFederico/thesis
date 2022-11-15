@@ -11,6 +11,7 @@ import multiprocess
 from functools import partial
 
 from src.utils import *
+from src.utils_grotas import IEEE57_b_matrix
 from src.random_graph_rt_nested import generate_random_rt_nested_network, get_matrix_from_nt_graph
 
 import logging
@@ -158,6 +159,15 @@ def rotate_matrix(matrix):
 
     return matrix
 
+def add_error_matrix_symetric(matrix):
+    for x in range(len(matrix)):
+        for y in range(len(matrix)):
+            if x != y and matrix[x,y]:
+                new_value = random.uniform(-1,1) * matrix[x,y]
+                matrix[x,y] += new_value
+                matrix[y,x] += new_value
+    return matrix
+
 def _generate_WS_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
 
     G = nx.watts_strogatz_graph(num_nodes, k = graph_hyper['k'], p = graph_hyper['p'])
@@ -183,9 +193,8 @@ def _generate_WS_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, w
 
     if weight_scale:
         W_GT = W_GT * num_nodes / np.sum(W_GT)
-    # W_GT *= 10
 
-    W_GT = rotate_matrix(W_GT)
+    # W_GT = rotate_matrix(W_GT)
 
     L_GT = np.diag(W_GT @ np.ones(num_nodes)) - W_GT
 
@@ -280,6 +289,19 @@ def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
     return z, W_GT
 
 
+def _generate_57_ieee_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
+    matrix, a = IEEE57_b_matrix()
+    matrix = rotate_matrix(matrix)
+    # TODO add some variations to matrixes, like some error
+    add_error_matrix_symetric(matrix)
+    a = get_a_from_matrix(matrix)
+    np.fill_diagonal(matrix, 0)
+    matrix = -matrix
+    z, W_GT = get_z_and_w_gt(matrix, matrix.shape[0], 30000, a)
+    print("finished" )
+    return z, W_GT
+
+
 def generate_WS_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale) -> dict:
     logger.info("generating WS graphs")
     n_cpu = 1 #multiprocess.cpu_count() - 2
@@ -305,6 +327,26 @@ def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper
     pool = multiprocess.Pool(n_cpu)
 
     z_multi, W_multi = zip(*pool.map(partial(_generate_nested_to_parallel,
+                                             num_nodes = num_nodes,
+                                             num_signals = num_signals,
+                                             graph_hyper = graph_hyper,
+                                             weighted = weighted,
+                                             weight_scale = weight_scale),
+                                     range(num_samples)))
+
+    result = {
+        'z': z_multi,
+        'W': W_multi
+    }
+
+    return result
+
+def generate_57_ieee_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale) -> dict:
+    logger.info("generating nested graphs")
+    n_cpu = 1 # multiprocess.cpu_count() - 2
+    pool = multiprocess.Pool(n_cpu)
+
+    z_multi, W_multi = zip(*pool.map(partial(_generate_57_ieee_to_parallel,
                                              num_nodes = num_nodes,
                                              num_signals = num_signals,
                                              graph_hyper = graph_hyper,

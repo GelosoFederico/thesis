@@ -26,6 +26,9 @@ import matplotlib.pyplot as plt
 def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float]):
 
     extra_random_clusters = False
+    N_subnetworks += random.randint(-1, 1)
+    if N_subnetworks == 0:
+        N_subnetworks = 1
     avg_subnetwork_N = N / N_subnetworks
     # Select size of the network acording to connectivity limitation (23)
     if avg_subnetwork_N > 30 and K <= 3:
