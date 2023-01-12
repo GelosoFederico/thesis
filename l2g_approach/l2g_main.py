@@ -196,6 +196,10 @@ def main():
             w_pred = torch.clamp(w_list[:, num_unroll - 1, :], min=0)
             loss = gmse_loss_batch_mean(w_pred, w_gt_batch)
             val_gmse.append(loss.item())
+            # obtener L
+            # (L^T L)^{-1} L^T X' = X^T
+            # L = get_L(w_pred)
+            # np.inv(L.T @ L) @ L.T @ z
 
         dur.append(time.time() - t0)
 
