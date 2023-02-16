@@ -8,14 +8,14 @@ import numpy as np
 
 from src.utils import gmse_loss_batch, gmse_loss_batch_mean, layerwise_gmse_loss
 from src.utils_data import data_loading, rotate_matrix, get_z_and_w_gt, get_a_from_matrix
-from src.utils_grotas import IEEE57_b_matrix
+from src.utils_grotas import IEEE57_b_matrix, get_b_matrix_from_positive_zero_diagonal
 from src.models import load_l2g_from_disk
 
 
 def main():
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model_to_use_date = "20221109231548"
+    model_to_use_date = "20230215014040"
     net = load_l2g_from_disk(f"saved_model\\net_{model_to_use_date}").to(device)
 
     batch_size = 32
@@ -33,7 +33,7 @@ def main():
         # plt.figure()
         # sns.heatmap(a, cmap = 'pink_r')
         # plt.title('prediction')
-        # plt.show()   
+        # plt.show()
         # print("new_ieee57.shape")
         # print(new_ieee57.shape)
         # print(a.shape)
@@ -48,7 +48,7 @@ def main():
         # plt.title('prediction')
         # plt.show()
         # np.fill_diagonal(mat, 0)
-        z, W_GT = get_z_and_w_gt(mat, mat.shape[0], 300, a)
+        z, W_GT, samples, states = get_z_and_w_gt(mat, mat.shape[0], 300, a)
         all_z.append(z)
         final_w.append(W_GT)
 
@@ -66,11 +66,6 @@ def main():
         test_loss = []
 
         z = z.to(device)
-        w_gt_batch = w_gt_batch.to(device)
-        this_batch_size = w_gt_batch.size()[0]
-
-        adj_batch = w_gt_batch.clone()
-        adj_batch[adj_batch > 0] = 1
 
         w_list = net.validation(z, threshold=1e-2)
         w_pred = torch.clamp(w_list[:, num_unroll - 1, :], min=0)
@@ -104,9 +99,36 @@ def main():
 
 
     idx = 0
+    pred = squareform(w_pred[idx,:].detach().cpu().numpy())
+    pred[np.abs(pred) < 0.1] = 0
+    B = get_b_matrix_from_positive_zero_diagonal(pred)
+    # B = get_b_matrix_from_positive_zero_diagonal(w_gt_batch[1, :].detach().cpu().numpy())
+
+    # L = np.linalg.inv(B.T@B)@B.T
+    state_covariance = np.eye(B.shape[0])
+    L_grotas = state_covariance @ B @ np.linalg.pinv(B.T@state_covariance@B+np.eye(B.shape[0]))
+    error_from_state_to_sample = []
+    # error_from_sample_to_state = []
+    error_from_sample_to_state_grotas = []
+    error_from_state_to_sample_real = []
+    sum_states = []
+    sum_samples = []
+    for i in range(samples.shape[1]):
+        sum_states.append(np.sum(states[:, i]**2))
+        sum_samples.append(np.sum(samples[:, i]**2))
+        error_from_state_to_sample_real.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
+        error_from_state_to_sample.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
+        # error_from_sample_to_state.append(np.sum(((L @ samples[:, i]) - states[:, i])**2))
+        error_from_sample_to_state_grotas.append(np.sum(((L_grotas @ samples[:, i]) - states[:, i])**2))
+    print(sum_states)
+    print(sum_samples)
+    print(error_from_state_to_sample)
+    # print(error_from_sample_to_state)
+    print(error_from_sample_to_state_grotas)
     plt.figure()
     pred_mat = squareform(w_pred[idx,:].detach().cpu().numpy())
-    sns.heatmap(pred_mat, cmap = 'pink_r')
+    # sns.heatmap(B, cmap = 'pink_r')
+    plt.matshow(B)
     plt.title('prediction')
     plt.savefig(f'plots_load/prediction_{idx}_model{model_to_use_date}_{time_now}.png')
     plt.show()

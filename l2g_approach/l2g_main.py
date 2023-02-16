@@ -67,7 +67,7 @@ def main():
             'n_subnets': 5,
             'p_rewire': 0.4
         }
-        num_samples=16064
+        num_samples=8064
 
         num_signals=3000
         # N = int(graph_size / graph_hyper['k'])
@@ -94,6 +94,8 @@ def main():
         graph_size = data['W'][0].shape[0]
 
     with open('data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now), 'wb') as handle:
+        del data['samples']
+        del data['states']
         pickle.dump(data, handle, protocol=4)
 
 
@@ -105,6 +107,7 @@ def main():
     train_loader, val_loader, test_loader = data_loading(data_dir, batch_size=batch_size)
 
 
+    # for _, W, _, _ in test_loader:
     for _, W in test_loader:
         eg = torch_sqaureform_to_matrix(W, device='cpu')
 
@@ -116,7 +119,7 @@ def main():
     n_graphFeat = 16
 
     lr = 1e-02
-    lr_decay = 0.9
+    lr_decay = 0.9999
 
 
 
@@ -130,7 +133,7 @@ def main():
     logging.info(net)
 
     # Training:
-    n_epochs = 50 # 300 default
+    n_epochs = 120 # 300 default
 
     run_values = {
         'graph_algorithm': graph_type,
@@ -161,6 +164,7 @@ def main():
         t0 = time.time()
 
         net.train()
+        # for z, w_gt_batch, sampl, state in train_loader:
         for z, w_gt_batch in train_loader:
             z = z.to(device)
             w_gt_batch = w_gt_batch.to(device)
@@ -188,6 +192,7 @@ def main():
         scheduler.step()
 
         net.eval()
+        # for z, w_gt_batch, samples, states in val_loader:
         for z, w_gt_batch in val_loader:
             z = z.to(device)
             w_gt_batch = w_gt_batch.to(device)
@@ -196,6 +201,9 @@ def main():
             w_pred = torch.clamp(w_list[:, num_unroll - 1, :], min=0)
             loss = gmse_loss_batch_mean(w_pred, w_gt_batch)
             val_gmse.append(loss.item())
+            # if epoch > n_epochs-2:
+            #     print('test')
+                # Ver como pasar de w a L
 
         dur.append(time.time() - t0)
 
@@ -216,7 +224,7 @@ def main():
     plt.xlabel('epoch')
     plt.savefig('plots/validation_loss_{}_{}.png'.format(graph_type, time_now))
 
-    plt.show()
+    # plt.show()
 
 
     for z, w_gt_batch in test_loader:
@@ -256,11 +264,11 @@ def main():
     plt.ylabel('GMSE')
     plt.xlabel('number of unrolls/iterations')
     plt.savefig('plots/GMSE_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.show()
 
     result = {
         'epoch_train_gmse': epoch_train_gmse,
-        'epoch_val_gmse': epoch_train_gmse,
+        'epoch_val_gmse': epoch_val_gmse,
         'pred_gmse_mean': final_pred_loss,
         'pred_gmse_mean_ci': final_pred_loss_ci,
         'auc_mean': aps_auc['auc_mean'],
@@ -288,25 +296,25 @@ def main():
     sns.heatmap(squareform(w_pred[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
     plt.title('prediction')
     plt.savefig('plots/prediction_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.show()
 
     plt.figure()
     sns.heatmap(squareform(w_gt_batch[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
     plt.title('groundtruth')
     plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.show()
     idx = 20
     plt.figure()
     sns.heatmap(squareform(w_pred[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
     plt.title('prediction')
     plt.savefig('plots/prediction_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.show()
 
     plt.figure()
     sns.heatmap(squareform(w_gt_batch[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
     plt.title('groundtruth')
     plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
-    plt.show()
+    # plt.show()
 
     f_score_average = get_f_score_average(w_gt_batch, w_pred)
     gmse_average = get_gmse_average(w_gt_batch, w_pred)

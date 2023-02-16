@@ -83,3 +83,21 @@ def get_matrix_from_IEEE_format(from_bus, to_bus, b, M=None):
             A[m,k] = 1
             A[k,m] = 1
     return B_real, A
+
+
+def get_b_matrix_from_positive_zero_diagonal(mat, threshold= None):
+    """
+    We assume we have a matrix where all nums are positive or zero, and with 0 in diagonal
+    We are going to make it a matrix with a diagonal of the sum of every value, and then make the rest negative
+    """
+    dimensions = mat.shape[0]
+    new_diagonal = np.zeros((dimensions,1))
+    for i in range(dimensions):
+        new_diagonal[i,0] = np.sum(mat[i,:])
+    
+    out_mat = -mat
+    np.fill_diagonal(out_mat, new_diagonal)
+    return out_mat
+
+def grotas_inverse(B, state_covariance):
+    return state_covariance @ B @ np.linalg.pinv(B.T@state_covariance@B+np.eye(B.shape[0]))

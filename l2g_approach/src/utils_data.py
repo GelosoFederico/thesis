@@ -11,8 +11,11 @@ import multiprocess
 from functools import partial
 
 from src.utils import *
-from src.utils_grotas import IEEE57_b_matrix
+from src.utils_grotas import IEEE57_b_matrix, get_b_matrix_from_positive_zero_diagonal
 from src.random_graph_rt_nested import generate_random_rt_nested_network, get_matrix_from_nt_graph
+# from l2g_approach.src.utils import *
+# from l2g_approach.src.utils_grotas import IEEE57_b_matrix, get_b_matrix_from_positive_zero_diagonal
+# from l2g_approach.src.random_graph_rt_nested import generate_random_rt_nested_network, get_matrix_from_nt_graph
 
 import logging
 
@@ -47,7 +50,7 @@ def data_loading(dir_dataset, batch_size = None, train_prop=0.8):
     val_size = int(num_samples - train_size)
 
     # data = TensorDataset(torch.Tensor(dataset['z'][:train_size + val_size + test_size]), torch.Tensor(w[:train_size + val_size + test_size]))
-    data = TensorDataset(torch.Tensor(dataset['z']), torch.Tensor(w))
+    data = TensorDataset(torch.Tensor(dataset['z']), torch.Tensor(w))#, torch.Tensor(dataset['samples']), torch.Tensor(dataset['states']))
     # train_data, val_data, test_data, _ = random_split(data, [train_size, val_size, test_size, extra_size])
     # print(f"train_data: {train_data},val_data: {val_data},test_data: {test_data},_: {_},")
     print(len(data))
@@ -272,14 +275,27 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
     return get_z_and_w_gt(W_GT, num_nodes, num_signals)
 
 
-def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None):
-    if A is None:
-        A = W_GT.getA()
-    L_GT = np.diag(A @ np.ones(num_nodes)) - A
+def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, sigma_noise=0.01):
+    # if A is None:  # A ∈ 57 x 57
+    #     A = W_GT.getA()
+    # L_GT = np.diag(A @ np.ones(num_nodes)) - A  # L = Diag(w1) - W
+    # # L_GT ∈ 57 x 57, symetric, with positive in diagonal, negative elswhere, and diagonal i = ∑j for all j ≠ i L_GT[j,i]
+    # W_GT = scipy.sparse.csr_matrix(W_GT)
+    # cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
+    # z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))  
+    # Inside, x ∈ 3000 x 57
+    # Half vector ∈ 1596 x 57
+
+    # Other strategy
+    n_samples = round(num_signals/10)
+    # n_samples = 1
+    states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
+    # samples = np.random.multivariate_normal(np.zeros(num_nodes), np.eye(num_nodes), num_signals)
+    samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+    # z = get_distance_halfvector(samples.T)  IT WORKS WITH SAMPLES
+    z = get_distance_halfvector(samples.T)
     W_GT = scipy.sparse.csr_matrix(W_GT)
-    cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
-    z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))
-    return z, W_GT
+    return z, W_GT , samples, states
 
 def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
     L_GT = np.diag(W_GT.A @ np.ones(num_nodes)) - W_GT.A
@@ -326,7 +342,7 @@ def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper
     n_cpu = 1 # multiprocess.cpu_count() - 2
     pool = multiprocess.Pool(n_cpu)
 
-    z_multi, W_multi = zip(*pool.map(partial(_generate_nested_to_parallel,
+    z_multi, W_multi, sample, states = zip(*pool.map(partial(_generate_nested_to_parallel,
                                              num_nodes = num_nodes,
                                              num_signals = num_signals,
                                              graph_hyper = graph_hyper,
@@ -336,7 +352,9 @@ def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper
 
     result = {
         'z': z_multi,
-        'W': W_multi
+        'W': W_multi,
+        'samples': sample,
+        'states': states,
     }
 
     return result

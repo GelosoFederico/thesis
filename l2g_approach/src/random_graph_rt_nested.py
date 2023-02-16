@@ -25,8 +25,10 @@ import matplotlib.pyplot as plt
 
 def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float]):
 
-    extra_random_clusters = False
-    N_subnetworks += random.randint(-1, 1)
+    extra_random_clusters = False  # More or less clusters
+    extra_random_clusters_nums = False  # more or less nodes in clusters
+    if extra_random_clusters:
+        N_subnetworks += random.randint(-2, 2)
     if N_subnetworks == 0:
         N_subnetworks = 1
     avg_subnetwork_N = N / N_subnetworks
@@ -43,8 +45,8 @@ def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta
     for i in range(N_subnetworks):
         if left_nodes > rounded_subnet_n:
             subnet_n = rounded_subnet_n
-            if extra_random_clusters:
-                subnet_n += random.randint(-1, 1)
+            if extra_random_clusters_nums:
+                subnet_n += random.randint(-2, 2)
         else:
             subnet_n = left_nodes
         if i == N_subnetworks-1:

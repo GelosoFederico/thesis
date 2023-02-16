@@ -334,7 +334,6 @@ def get_matrix_from_nt_graph(G: nx.Graph):
     for edge in G.edges():
         G[edge[0]][edge[1]]['weight'] = -G[edge[0]][edge[1]]['value']
     matrix = nx.to_numpy_matrix(G)
-    print(matrix)
     return matrix
 
 
