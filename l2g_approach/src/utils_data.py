@@ -215,7 +215,6 @@ def _generate_WS_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, w
 def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
 
 
-    # raise Exception()
     # TODO change this and the weights with our generator
     default_hyper = {
         'k':2,
@@ -287,14 +286,36 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
     # Half vector ∈ 1596 x 57
 
     # Other strategy
+    # we generate random states, and then pass them through the matrix so we get the samples, and use those for z
     n_samples = round(num_signals/10)
-    # n_samples = 1
     states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
-    # samples = np.random.multivariate_normal(np.zeros(num_nodes), np.eye(num_nodes), num_signals)
     samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
-    # z = get_distance_halfvector(samples.T)  IT WORKS WITH SAMPLES
     z = get_distance_halfvector(samples.T)
     W_GT = scipy.sparse.csr_matrix(W_GT)
+    # Other strategy
+    # we generate random samples, and then pass them through the inverse matrix so we get the samples, and use those for z
+    # n_samples = round(num_signals/10)
+    # states = np.random.default_rng().normal(10, sigma_state, (num_nodes, n_samples))
+    # B = get_b_matrix_from_positive_zero_diagonal(W_GT)
+    # state_covariance = np.eye(B.shape[0])
+    # samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+    # z = get_distance_halfvector(samples.T)
+    # inverse_B = state_covariance @ B @ np.linalg.pinv(B.T@state_covariance@B+np.eye(B.shape[0]))
+
+    # states = inverse_B @ samples
+    # z = get_distance_halfvector(states.T)
+    # W_GT = scipy.sparse.csr_matrix(W_GT)
+    # We are just testing random stuff at this point
+    # n_samples = round(num_signals/10)
+    # states = np.random.default_rng().normal(10, sigma_state, (num_nodes, n_samples))
+    # samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+    # B = get_b_matrix_from_positive_zero_diagonal(W_GT)
+    # state_covariance = np.eye(B.shape[0]) * 10
+    # inverse_B = state_covariance @ B @ np.linalg.pinv(B.T@state_covariance@B+np.eye(B.shape[0]))
+    # states = inverse_B @ samples
+    # z = get_distance_halfvector(states.T)
+    # W_GT = scipy.sparse.csr_matrix(W_GT)
+
     return z, W_GT , samples, states
 
 def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):

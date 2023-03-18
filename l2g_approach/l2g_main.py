@@ -2,6 +2,7 @@
 This is from https://github.com/xpuoxford/L2G-neurips2021
 with some changes to go with our rt nested graphs
 """
+import argparse
 import json
 from datetime import datetime
 from numpy import average
@@ -21,17 +22,18 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.spatial.distance import squareform
 
-def main():
+
+def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     run_comments = []
 
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     # graph_type = 'WS'
-    graph_type = 'rt_nested'
+    # graph_type = 'rt_nested'
     # graph_type = 'ieee57'
     graph_size = 57 # default 50
-    num_unroll = 20
+    # num_unroll = 20
 
     logging.basicConfig(filename='logs/L2G_{}_m{}_x{}.log'.format(graph_type, graph_size, num_unroll),
                         filemode='w',
@@ -49,10 +51,10 @@ def main():
     edge_type = 'lognormal'
 
     if graph_type == 'WS':
-        graph_hyper = {'k': 5, # default k=5
-                    'p': 0.4}
-        num_samples = 16064 # default 8064
-        num_signals = 3000 # default 3000
+        graph_hyper = {'k': k, # default k=5
+                    'p': p_rewire}
+        # num_samples = 16064 # default 8064
+        # num_signals = 3000 # default 3000
 
         data = generate_WS_parallel(num_samples=num_samples,
                                     num_signals=num_signals, # 3000 default
@@ -63,13 +65,13 @@ def main():
     elif graph_type == 'rt_nested':
         # TODO get true hyperparams
         graph_hyper = {
-            'k': 2,
-            'n_subnets': 5,
-            'p_rewire': 0.4
+            'k': k,
+            'n_subnets': n_subnets,
+            'p_rewire': p_rewire
         }
-        num_samples=8064
 
-        num_signals=3000
+        # num_samples=8064
+        # num_signals=3000
         # N = int(graph_size / graph_hyper['k'])
         # print(N)
         data = generate_rt_nested_parallel(num_samples=num_samples,
@@ -79,8 +81,8 @@ def main():
                                     weighted=edge_type,
                                     weight_scale=True)
     else:
-        num_samples=8064
-        num_signals=3000
+        # num_samples=8064
+        # num_signals=3000
         graph_hyper = {}
         data = generate_57_ieee_parallel(num_samples=num_samples,
                                     num_signals=num_signals,
@@ -111,15 +113,15 @@ def main():
     for _, W in test_loader:
         eg = torch_sqaureform_to_matrix(W, device='cpu')
 
-    num_unroll = 20
+    # num_unroll = 20
     # graph_size = 50
     n_hid = 32
     n_latent = 16
     n_nodeFeat = 1
     n_graphFeat = 16
 
-    lr = 1e-02
-    lr_decay = 0.9999
+    # lr = 1e-02
+    # lr_decay = 0.9999
 
 
 
@@ -133,7 +135,8 @@ def main():
     logging.info(net)
 
     # Training:
-    n_epochs = 120 # 300 default
+    initial_epochs = n_epochs # 300 default
+    # n_epochs = 120 # 300 default
 
     run_values = {
         'graph_algorithm': graph_type,
@@ -157,7 +160,9 @@ def main():
     epoch_train_gmse = []
     epoch_val_gmse = []
 
-    for epoch in range(n_epochs):
+    epoch = 0
+    # for epoch in range(n_epochs):
+    while epoch < n_epochs:
 
         train_unrolling_loss, train_vae_loss, train_kl_loss, train_gmse, val_gmse = [], [], [], [], []
 
@@ -215,6 +220,10 @@ def main():
 
         epoch_train_gmse.append(np.mean(train_gmse))
         epoch_val_gmse.append(np.mean(val_gmse))
+
+        if epoch >= initial_epochs and epoch_val_gmse[-1] > 1.5 and epoch < 500:
+            n_epochs += 1
+        epoch += 1
 
     # validation loss:
 
@@ -361,4 +370,29 @@ def get_gmse_average(groundtruth, prediction):
 
 if __name__ == "__main__":
     multiprocess.freeze_support()
-    main()
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--graph_type', default='rt_nested')
+    parser.add_argument('--num_unroll', default=20, type=int)
+    parser.add_argument('--num_samples', default=8064, type=int)
+    parser.add_argument('--num_signals', default=3000, type=int)
+    parser.add_argument('--k', default=2, type=int)
+    parser.add_argument('--n_subnets', default=5, type=int)
+    parser.add_argument('--p_rewire', default=0.4, type=float)
+    parser.add_argument('--lr', default=1e-02, type=float)
+    parser.add_argument('--lr_decay', default=0.9999, type=float)
+    parser.add_argument('--n_epochs', default=120, type=int)
+    parsed_args = parser.parse_args()
+
+    main(
+        parsed_args.graph_type,
+        parsed_args.num_unroll,
+        parsed_args.num_samples,
+        parsed_args.num_signals,
+        parsed_args.k,
+        parsed_args.n_subnets,
+        parsed_args.p_rewire,
+        parsed_args.lr,
+        parsed_args.lr_decay,
+        parsed_args.n_epochs,
+    )
