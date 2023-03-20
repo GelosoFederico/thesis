@@ -318,6 +318,10 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
 
     return z, W_GT , samples, states
 
+def get_z_from_samples(samples):
+    return get_distance_halfvector(samples.T)
+
+
 def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
     L_GT = np.diag(W_GT.A @ np.ones(num_nodes)) - W_GT.A
     W_GT = scipy.sparse.csr_matrix(W_GT)

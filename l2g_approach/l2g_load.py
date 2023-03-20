@@ -1,4 +1,7 @@
+import argparse
 from datetime import datetime
+import json
+import pickle
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -7,15 +10,23 @@ from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 
 from src.utils import gmse_loss_batch, gmse_loss_batch_mean, layerwise_gmse_loss
-from src.utils_data import data_loading, rotate_matrix, get_z_and_w_gt, get_a_from_matrix
-from src.utils_grotas import IEEE57_b_matrix, get_b_matrix_from_positive_zero_diagonal
+from src.utils_data import data_loading, rotate_matrix, get_z_and_w_gt, get_a_from_matrix, get_z_from_samples
+from src.utils_grotas import IEEE57_b_matrix, get_b_matrix_from_positive_zero_diagonal, F_score
 from src.models import load_l2g_from_disk
 
 
-def main():
+def MSE_matrix(matrix_real, matrix_est):
+    diff_matrix = matrix_real - matrix_est
+    mse = np.trace(diff_matrix @ diff_matrix.T)
+    if mse != np.real(mse):
+        print(mse)
+        mse = np.real(mse)
+    return mse
+
+
+def main(model_to_use_date, observations_to_use_date):
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    model_to_use_date = "20230215014040"
     net = load_l2g_from_disk(f"saved_model\\net_{model_to_use_date}").to(device)
 
     batch_size = 32
@@ -39,18 +50,24 @@ def main():
         # print(a.shape)
         matrixes.append((new_ieee57, a))
 
-    final_w = []
+    # final_w = []
     all_z = []
 
-    for mat, a in matrixes:
+    # for mat, a in matrixes:
         # plt.figure()
         # sns.heatmap(a, cmap = 'pink_r')
         # plt.title('prediction')
         # plt.show()
         # np.fill_diagonal(mat, 0)
-        z, W_GT, samples, states = get_z_and_w_gt(mat, mat.shape[0], 300, a)
-        all_z.append(z)
-        final_w.append(W_GT)
+        # TODO this is the one line to use if not reloading
+        # z, W_GT, samples, states = get_z_and_w_gt(mat, mat.shape[0], 300, a)
+
+        # all_z.append(z)
+        # final_w.append(W_GT)
+    with open(f"..\\data\\observations_{observations_to_use_date}.pickle", 'rb') as handle:
+        dataset = pickle.load(handle)
+    for mat, a in matrixes:
+        all_z.append(get_z_from_samples(np.matrix(dataset['samples']).T))
 
     w = []
     for mat in matrixes:
@@ -113,25 +130,25 @@ def main():
     error_from_state_to_sample_real = []
     sum_states = []
     sum_samples = []
-    for i in range(samples.shape[1]):
-        sum_states.append(np.sum(states[:, i]**2))
-        sum_samples.append(np.sum(samples[:, i]**2))
-        error_from_state_to_sample_real.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
-        error_from_state_to_sample.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
-        # error_from_sample_to_state.append(np.sum(((L @ samples[:, i]) - states[:, i])**2))
-        error_from_sample_to_state_grotas.append(np.sum(((L_grotas @ samples[:, i]) - states[:, i])**2))
-    print(sum_states)
-    print(sum_samples)
-    print(error_from_state_to_sample)
-    # print(error_from_sample_to_state)
-    print(error_from_sample_to_state_grotas)
+    # for i in range(samples.shape[1]):
+    #     sum_states.append(np.sum(states[:, i]**2))
+    #     sum_samples.append(np.sum(samples[:, i]**2))
+    #     error_from_state_to_sample_real.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
+    #     error_from_state_to_sample.append(np.sum(((B @ states[:, i]) - samples[:, i])**2))
+    #     # error_from_sample_to_state.append(np.sum(((L @ samples[:, i]) - states[:, i])**2))
+    #     error_from_sample_to_state_grotas.append(np.sum(((L_grotas @ samples[:, i]) - states[:, i])**2))
+    # print(sum_states)
+    # print(sum_samples)
+    # print(error_from_state_to_sample)
+    # # print(error_from_sample_to_state)
+    # print(error_from_sample_to_state_grotas)
     plt.figure()
     pred_mat = squareform(w_pred[idx,:].detach().cpu().numpy())
     # sns.heatmap(B, cmap = 'pink_r')
     plt.matshow(B)
     plt.title('prediction')
     plt.savefig(f'plots_load/prediction_{idx}_model{model_to_use_date}_{time_now}.png')
-    plt.show()
+    # plt.show()
 
     plt.figure()
     mat_to_plot = w_gt_batch[idx,:].detach().cpu().numpy()
@@ -140,26 +157,44 @@ def main():
     sns.heatmap(mat_to_plot, cmap = 'pink_r')
     plt.title('groundtruth')
     plt.savefig(f'plots_load/groundtruth_{idx}_model{model_to_use_date}_{time_now}.png')
-    plt.show()
+    # plt.show()
 
     plt.figure()
     sns.heatmap(matrixes[idx][1], cmap = 'pink_r')
     plt.title('groundtruth2')
     plt.savefig(f'plots_load/groundtruth2_{idx}_model{model_to_use_date}_{time_now}.png')
-    plt.show()
+    # plt.show()
 
     
     plt.figure()
     sns.heatmap(np.abs(mat_to_plot - pred_mat), cmap = 'pink_r')
     plt.title('difference')
     plt.savefig(f'plots_load/difference_{idx}_model{model_to_use_date}_{time_now}.png')
-    plt.show()
+    # plt.show()
 
     plt.figure()
     sns.heatmap(np.abs(matrixes[idx][1] - get_a_from_matrix(pred_mat)), cmap = 'pink_r')
     plt.title('difference A')
     plt.savefig(f'plots_load/differenceA_{idx}_model{model_to_use_date}_{time_now}.png')
-    plt.show()
+    # plt.show()
+
+    # TODO we are doing only one matrix, we have 64
+    MSE = MSE_matrix(mat_to_plot, pred_mat)
+    fs = F_score(mat_to_plot, pred_mat)
+    # MSE_states_total = MSE_states(observations, B, sigma_theta, sigma_est**2, states)
+    test_result = {
+        "net": model_to_use_date,
+        "observations": observations_to_use_date,
+        "MSE": MSE.item(),
+        "F_score": fs.item()
+    }
+    with open(f"plots_load/run_{model_to_use_date}_with_{observations_to_use_date}.json", 'w') as fp:
+        json.dump(test_result, fp, sort_keys=True, indent=4)
+
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--model_to_use_date', default="20230215014040", type=str)
+    parser.add_argument('--observations_to_use_date', default="20230320011919", type=str)
+    parsed_args = parser.parse_args()
+    main(parsed_args.model_to_use_date, parsed_args.observations_to_use_date)

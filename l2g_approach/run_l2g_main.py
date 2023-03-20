@@ -14,23 +14,24 @@ parameters = {
 'n_epochs': 300,
 }
 
-# randomize
-if random.random() > 0.8:
-    parameters['num_unroll'] = round(parameters['num_unroll'] + parameters['num_unroll'] * random.uniform(-0.2, 0.2))
-if random.random() > 0.8:
-    parameters['num_signals'] = round(parameters['num_signals'] + parameters['num_signals'] * random.uniform(-0.2, 0.2))
-if random.random() > 0.95:
-    parameters['k'] = round(parameters['k'] + random.randint(-1,1))
-if random.random() > 0.8:
-    parameters['n_subnets'] = round(parameters['n_subnets'] + random.randint(-1,1))
-if random.random() > 0.8:
-    parameters['p_rewire'] = parameters['p_rewire'] + parameters['p_rewire'] * random.uniform(-0.2, 0.2)
-if random.random() > 0.2:
-    parameters['n_epochs'] = round(parameters['n_epochs'] + parameters['n_epochs'] * random.uniform(-0.6, 0.2))
+while True:
+    # randomize
+    if random.random() > 0.8:
+        parameters['num_unroll'] = round(parameters['num_unroll'] + parameters['num_unroll'] * random.uniform(-0.2, 0.2))
+    if random.random() > 0.8:
+        parameters['num_signals'] = round(parameters['num_signals'] + parameters['num_signals'] * random.uniform(-0.2, 0.2))
+    if random.random() > 0.95:
+        parameters['k'] = round(parameters['k'] + random.randint(-1,1))
+    if random.random() > 0.8:
+        parameters['n_subnets'] = round(parameters['n_subnets'] + random.randint(-1,1))
+    if random.random() > 0.8:
+        parameters['p_rewire'] = parameters['p_rewire'] + parameters['p_rewire'] * random.uniform(-0.2, 0.2)
+    if random.random() > 0.2:
+        parameters['n_epochs'] = round(parameters['n_epochs'] + parameters['n_epochs'] * random.uniform(-0.6, 0.2))
 
-command = "venv\\scripts\\python l2g_main.py "
-command += " ".join([f"--{k} {v}" for k,v in parameters.items()])
-print(command)
-process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-process.wait()
-print(process.returncode)
+    command = "venv\\scripts\\python l2g_main.py "
+    command += " ".join([f"--{k} {v}" for k,v in parameters.items()])
+    print(command)
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    process.wait()
+    print(process.returncode)

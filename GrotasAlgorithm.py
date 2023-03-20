@@ -9,8 +9,8 @@ import cvxpy as cp
 from utils import matprint, get_U_matrix
 from simulations import F_score, cramer_rao_bound
 
-augmented_lagrangian_penalty_parameter = 1e-10
-augmented_lagrangian_learning_rate = 1e-10  # 1 > learning_rate > 0
+augmented_lagrangian_penalty_parameter = 1e-6
+augmented_lagrangian_learning_rate = 1e-6  # 1 > learning_rate > 0
 base_sparsity = 2
 # TODO change all np.transpose to matrix.T
 
@@ -148,7 +148,7 @@ def augmented_lagrangian_topology_recovery(N, M, U, sigma_theta_tilde, sigma_p_t
         t += 1
 
         if np.isnan(W).any():
-            raise Exception(t)
+            raise Exception(f"W went to not a number at iteration {t}")
         if t > max_amount_of_its:
             return W_inv
 
@@ -159,6 +159,9 @@ def GrotasAlgorithm(observations, state_covariance_matrix, method='two_phase_top
     # state_covariance_matrix is E_theta_tilde
     M = observations.shape[1]
     N = observations.shape[0]
+    print(observations.shape)
+    print(M)
+    print(N)
     U = get_U_matrix(M)
     state_covariance_matrix_tilde = U.T @ state_covariance_matrix @ U
 
