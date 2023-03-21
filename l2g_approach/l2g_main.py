@@ -23,7 +23,7 @@ import seaborn as sns
 from scipy.spatial.distance import squareform
 
 
-def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs):
+def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     run_comments = []
@@ -79,7 +79,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                     num_nodes=graph_size,
                                     graph_hyper=graph_hyper,
                                     weighted=edge_type,
-                                    weight_scale=True)
+                                    weight_scale=True, SNR=SNR)
     else:
         # num_samples=8064
         # num_signals=3000
@@ -96,8 +96,8 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
         graph_size = data['W'][0].shape[0]
 
     with open('data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now), 'wb') as handle:
-        del data['samples']
-        del data['states']
+        # del data['samples']
+        # del data['states']
         pickle.dump(data, handle, protocol=4)
 
 
@@ -382,6 +382,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr', default=1e-02, type=float)
     parser.add_argument('--lr_decay', default=0.9999, type=float)
     parser.add_argument('--n_epochs', default=120, type=int)
+    parser.add_argument('--SNR', default=20, type=int)
     parsed_args = parser.parse_args()
 
     main(
@@ -395,4 +396,5 @@ if __name__ == "__main__":
         parsed_args.lr,
         parsed_args.lr_decay,
         parsed_args.n_epochs,
+        parsed_args.SNR,
     )

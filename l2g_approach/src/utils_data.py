@@ -212,7 +212,7 @@ def _generate_WS_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, w
 
     return z, W_GT
 
-def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
+def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False, SNR=20):
 
 
     # TODO change this and the weights with our generator
@@ -271,10 +271,10 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
     # if weight_scale:
     #     W_GT = W_GT * num_nodes / np.sum(W_GT)
 
-    return get_z_and_w_gt(W_GT, num_nodes, num_signals)
+    return get_z_and_w_gt(W_GT, num_nodes, num_signals, SNR=SNR)
 
 
-def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, sigma_noise=0.01):
+def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, SNR=20):
     # if A is None:  # A ∈ 57 x 57
     #     A = W_GT.getA()
     # L_GT = np.diag(A @ np.ones(num_nodes)) - A  # L = Diag(w1) - W
@@ -287,7 +287,9 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
 
     # Other strategy
     # we generate random states, and then pass them through the matrix so we get the samples, and use those for z
-    n_samples = round(num_signals/10)
+    n_samples = round(num_signals)
+    B_matrix = get_b_matrix_from_positive_zero_diagonal(W_GT)
+    sigma_noise = calculate_SNR_grotas(B_matrix, 1, SNR)
     states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
     samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
     z = get_distance_halfvector(samples.T)
@@ -316,10 +318,24 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
     # z = get_distance_halfvector(states.T)
     # W_GT = scipy.sparse.csr_matrix(W_GT)
 
-    return z, W_GT , samples, states
+    return z, W_GT
+
 
 def get_z_from_samples(samples):
     return get_distance_halfvector(samples.T)
+
+def get_U_matrix(M):
+    return np.concatenate((np.array([-np.ones(M-1)]), np.eye(M-1)))
+
+def calculate_SNR_grotas(B, c, SNR):
+    M = B.shape[0]
+    U = get_U_matrix(M)
+    sigma_theta = c**2 * np.eye(M)
+    sigma_theta_tilde = U.T @ sigma_theta @ U
+    B_tilde = B[1:M, 1:M]
+
+    return np.sqrt(np.trace(B_tilde @ sigma_theta_tilde @
+                           B_tilde) / (10**(SNR/10.0)))
 
 
 def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
@@ -362,24 +378,23 @@ def generate_WS_parallel(num_samples, num_nodes, num_signals, graph_hyper, weigh
     }
 
     return result
-def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale) -> dict:
+def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale,SNR) -> dict:
     logger.info("generating nested graphs")
     n_cpu = 1 # multiprocess.cpu_count() - 2
     pool = multiprocess.Pool(n_cpu)
 
-    z_multi, W_multi, sample, states = zip(*pool.map(partial(_generate_nested_to_parallel,
+    z_multi, W_multi = zip(*pool.map(partial(_generate_nested_to_parallel,
                                              num_nodes = num_nodes,
                                              num_signals = num_signals,
                                              graph_hyper = graph_hyper,
                                              weighted = weighted,
-                                             weight_scale = weight_scale),
+                                             weight_scale = weight_scale,
+                                             SNR=SNR),
                                      range(num_samples)))
 
     result = {
         'z': z_multi,
         'W': W_multi,
-        'samples': sample,
-        'states': states,
     }
 
     return result
