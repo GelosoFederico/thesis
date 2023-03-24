@@ -151,6 +151,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
         'lr': lr,
         'lr_decay': lr_decay,
         'n_epochs': n_epochs,
+        'SNR': SNR,
     }
     with open(f"plots/run_values_{graph_type}_{time_now}.txt",'w') as f:
         json.dump(run_values, f, indent=4)
