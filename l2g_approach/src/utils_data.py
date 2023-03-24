@@ -291,7 +291,7 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
     B_matrix = get_b_matrix_from_positive_zero_diagonal(W_GT)
     sigma_noise = calculate_SNR_grotas(B_matrix, 1, SNR)
     states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
-    samples = get_b_matrix_from_positive_zero_diagonal(W_GT) @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+    samples = B_matrix @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
     z = get_distance_halfvector(samples.T)
     W_GT = scipy.sparse.csr_matrix(W_GT)
     # Other strategy

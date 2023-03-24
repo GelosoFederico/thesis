@@ -33,14 +33,18 @@ def main(model_to_use_date, observations_to_use_date):
     # data_dir = f"data\\dataset_rt_nested_57nodes_rt_nested_{model_to_use_date}.pickle"
     # train_loader, val_loader, test_loader = data_loading(data_dir, batch_size=batch_size)
 
+    with open(f"..\\data\\observations_{observations_to_use_date}.pickle", 'rb') as handle:
+        dataset = pickle.load(handle)
+
     # Use the IEEE 57 options
     num_samples = batch_size
     matrixes = []
     for i in range(num_samples):
-        new_ieee57, a = IEEE57_b_matrix()
-        if i != 0:
-            new_ieee57 = rotate_matrix(new_ieee57)
-        a = get_a_from_matrix(new_ieee57)
+        matrix_loaded = dataset['matrix']
+        a = dataset['matrix_a']
+        # if i != 0:
+            # matrix_loaded = rotate_matrix(matrix_loaded)
+        a = get_a_from_matrix(matrix_loaded)
         # plt.figure()
         # sns.heatmap(a, cmap = 'pink_r')
         # plt.title('prediction')
@@ -48,7 +52,7 @@ def main(model_to_use_date, observations_to_use_date):
         # print("new_ieee57.shape")
         # print(new_ieee57.shape)
         # print(a.shape)
-        matrixes.append((new_ieee57, a))
+        matrixes.append((matrix_loaded, a))
 
     # final_w = []
     all_z = []
@@ -64,8 +68,6 @@ def main(model_to_use_date, observations_to_use_date):
 
         # all_z.append(z)
         # final_w.append(W_GT)
-    with open(f"..\\data\\observations_{observations_to_use_date}.pickle", 'rb') as handle:
-        dataset = pickle.load(handle)
     for mat, a in matrixes:
         all_z.append(get_z_from_samples(np.matrix(dataset['samples']).T))
 
@@ -84,7 +86,7 @@ def main(model_to_use_date, observations_to_use_date):
 
         z = z.to(device)
 
-        w_list = net.validation(z, threshold=1e-2)
+        w_list = net.validation(z, threshold=1e-1)
         w_pred = torch.clamp(w_list[:, num_unroll - 1, :], min=0)
 
         # loss_mean = gmse_loss_batch_mean(w_pred, w_gt_batch)
