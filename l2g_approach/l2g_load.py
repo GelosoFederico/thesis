@@ -146,7 +146,7 @@ def main(model_to_use_date, observations_to_use_date):
     pred_mat = squareform(w_pred[idx,:].detach().cpu().numpy())
     # sns.heatmap(B, cmap = 'pink_r')
     plt.matshow(B)
-    plt.title('prediction')
+    plt.title('B matrix')
     plt.savefig(f'plots_load/prediction_{idx}_model{model_to_use_date}_{time_now}.png')
     # plt.show()
 
@@ -164,6 +164,11 @@ def main(model_to_use_date, observations_to_use_date):
     plt.title('groundtruth2')
     plt.savefig(f'plots_load/groundtruth2_{idx}_model{model_to_use_date}_{time_now}.png')
     # plt.show()
+
+    plt.figure()
+    sns.heatmap(pred_mat, cmap = 'pink_r')
+    plt.title('prediction')
+    plt.savefig(f'plots_load/groundtruth2_{idx}_model{model_to_use_date}_{time_now}.png')
 
     
     plt.figure()

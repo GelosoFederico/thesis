@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # parser.add_argument('--augmented', default=False, action='store_true')
     # parser.add_argument('--two_phase', default=False, action='store_true')
     parser.add_argument('--N', default=200, type=int)
-    parser.add_argument('--SNR', default=0.1, type=float)
+    parser.add_argument('--SNR', default=20, type=float)
     B_real, A = IEEE57_b_matrix()
 
     parsed_args = parser.parse_args()
@@ -66,6 +66,7 @@ if __name__ == '__main__':
             data = {'samples': observations}
             pickle.dump(data, handle, protocol=4)
         run = run_test(B_real, observations, sigma_theta, method, states)
+        run['SNR'] = SNR
         print(f"++++++ Run N={N}, SNR={SNR}, method={method}\n MSE={run['MSE']}")
         print(run)
         save_as_json(run)

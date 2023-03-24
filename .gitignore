@@ -1,6 +1,7 @@
 plots/*
 runs/*
 venv/*
+data/*
 l2g_approach/venv/*
 l2g_approach/data/*
 l2g_approach/logs/*
