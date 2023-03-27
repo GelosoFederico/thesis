@@ -320,6 +320,16 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
 
     return z, W_GT
 
+def get_z_and_w_gt_for_ieee(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, SNR=20):
+    n_samples = round(num_signals)
+    sigma_noise = calculate_SNR_grotas(W_GT, 1, SNR)
+    states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
+    samples = W_GT @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+    z = get_distance_halfvector(samples.T)
+    W_GT = scipy.sparse.csr_matrix(W_GT)
+
+    return z, W_GT
+
 
 def get_z_from_samples(samples):
     return get_distance_halfvector(samples.T)
@@ -354,7 +364,7 @@ def _generate_57_ieee_to_parallel(i, num_nodes, num_signals, graph_hyper, weight
     a = get_a_from_matrix(matrix)
     np.fill_diagonal(matrix, 0)
     matrix = -matrix
-    z, W_GT = get_z_and_w_gt(matrix, matrix.shape[0], 30000, a)
+    z, W_GT = get_z_and_w_gt_for_ieee(matrix, matrix.shape[0], 30000, a)
     print("finished" )
     return z, W_GT
 

@@ -7,6 +7,8 @@ from datetime import datetime
 import GrotasAlgorithm
 # from GrotasAlgorithm import GrotasAlgorithm
 from GrotasTests import run_test
+from l2g_approach.src.random_graph_rt_nested import generate_random_rt_nested_network
+from utils import create_matrix_from_nx_graph
 
 from NetworkMatrix import IEEE57_b_matrix
 from simulations import get_observations
@@ -44,13 +46,35 @@ if __name__ == '__main__':
     # parser.add_argument('--two_phase', default=False, action='store_true')
     parser.add_argument('--N', default=200, type=int)
     parser.add_argument('--SNR', default=20, type=float)
-    B_real, A = IEEE57_b_matrix()
+    parser.add_argument('--random', default=False, action='store_true')
+
 
     parsed_args = parser.parse_args()
     # two_phase_enabled = parsed_args.two_phase
     # augmented_enabled = parsed_args.augmented
     N = parsed_args.N
     SNR = parsed_args.SNR
+    
+    if parsed_args.random:
+        rt_nested_hyper = {
+            'N': 57,
+            'K':2,
+            'd':4,
+            'alpha':0.5,
+            'beta':0.4,
+            'p_rewire':0.3, 
+            'N_subnetworks': 6,
+            'distribution_params': (-2.4, 2.1, 2.0),
+        }
+        G = None
+        while not G:
+            try:
+                G = generate_random_rt_nested_network(**rt_nested_hyper)
+            except Exception as e:
+                pass
+        B_real, A = create_matrix_from_nx_graph(G)
+    else:
+        B_real, A = IEEE57_b_matrix()
 
     # points = np.linspace(200, 6000, 15, dtype=np.integer)
     # range_SNR = np.linspace(5, 60, 21)
@@ -63,10 +87,11 @@ if __name__ == '__main__':
     try:
         observations, sigma_theta, states, noise_sigma = get_observations(N, SNR, c, B_real)
         with open(f'data/observations_{time_now}.pickle', 'wb') as handle:
-            data = {'samples': observations}
+            data = {'samples': observations, 'matrix': B_real, 'matrix_a': A}
             pickle.dump(data, handle, protocol=4)
         run = run_test(B_real, observations, sigma_theta, method, states)
         run['SNR'] = SNR
+        run['random'] = "true" if parsed_args.random else "false"
         print(f"++++++ Run N={N}, SNR={SNR}, method={method}\n MSE={run['MSE']}")
         print(run)
         save_as_json(run)
