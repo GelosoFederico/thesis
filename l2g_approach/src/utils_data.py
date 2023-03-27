@@ -166,7 +166,7 @@ def add_error_matrix_symetric(matrix):
     for x in range(len(matrix)):
         for y in range(len(matrix)):
             if x != y and matrix[x,y]:
-                new_value = random.uniform(-1,1) * matrix[x,y]
+                new_value = random.uniform(-0.2,0.2) * matrix[x,y]
                 matrix[x,y] += new_value
                 matrix[y,x] += new_value
     return matrix
@@ -356,7 +356,7 @@ def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
     return z, W_GT
 
 
-def _generate_57_ieee_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
+def _generate_57_ieee_to_parallel(num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
     matrix, a = IEEE57_b_matrix()
     matrix = rotate_matrix(matrix)
     # TODO add some variations to matrixes, like some error
@@ -364,7 +364,7 @@ def _generate_57_ieee_to_parallel(i, num_nodes, num_signals, graph_hyper, weight
     a = get_a_from_matrix(matrix)
     np.fill_diagonal(matrix, 0)
     matrix = -matrix
-    z, W_GT = get_z_and_w_gt_for_ieee(matrix, matrix.shape[0], 30000, a)
+    z, W_GT = get_z_and_w_gt_for_ieee(matrix, matrix.shape[0], num_signals, a)
     print("finished" )
     return z, W_GT
 
