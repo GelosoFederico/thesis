@@ -23,6 +23,21 @@ import seaborn as sns
 from scipy.spatial.distance import squareform
 
 
+def get_mse(batch, prediction):
+    num_batch = batch.shape[0]
+    mse = 0
+    for i in range(num_batch):
+        mse += MSE_matrix(squareform(batch[i,:].detach().cpu().numpy()), squareform(prediction[i,:].detach().cpu().numpy()))
+    return mse/num_batch
+
+def MSE_matrix(matrix_real, matrix_est):
+    diff_matrix = matrix_real - matrix_est
+    mse = np.trace(diff_matrix @ diff_matrix.T)
+    if mse != np.real(mse):
+        mse = np.real(mse)
+    return mse
+
+
 def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
@@ -159,6 +174,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     dur = []
 
     epoch_train_gmse = []
+    epoch_train_mse = []
     epoch_val_gmse = []
 
     epoch = 0
@@ -167,6 +183,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
         train_unrolling_loss, train_vae_loss, train_kl_loss, train_gmse, val_gmse = [], [], [], [], []
 
+        train_mse = []
         t0 = time.time()
 
         net.train()
@@ -189,7 +206,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
             w_pred = w_list[:, num_unroll - 1, :]
             gmse = gmse_loss_batch_mean(w_pred, w_gt_batch)
+            mse = get_mse(w_gt_batch, w_pred)
 
+            train_mse.append(mse)
             train_gmse.append(gmse.item())
             train_unrolling_loss.append(unrolling_loss.item())
             train_vae_loss.append(vae_loss.item())
@@ -220,6 +239,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
         logging.info("== gmse <train: {:04.4f} | val: {:04.4f}> ".format(np.mean(train_gmse), np.mean(val_gmse)))
 
         epoch_train_gmse.append(np.mean(train_gmse))
+        epoch_train_mse.append(np.mean(train_mse))
         epoch_val_gmse.append(np.mean(val_gmse))
 
         if epoch >= initial_epochs and epoch_val_gmse[-1] > 1.5 and epoch < 500:
@@ -278,6 +298,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     result = {
         'epoch_train_gmse': epoch_train_gmse,
+        'epoch_train_mse': epoch_train_mse,
         'epoch_val_gmse': epoch_val_gmse,
         'pred_gmse_mean': final_pred_loss,
         'pred_gmse_mean_ci': final_pred_loss_ci,
@@ -328,7 +349,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     f_score_average = get_f_score_average(w_gt_batch, w_pred)
     gmse_average = get_gmse_average(w_gt_batch, w_pred)
+    mse_average = get_mse(train_loader, w_pred)
     result['gmse_average'] = gmse_average
+    result['mse_average'] = mse_average
     result['f_score_average'] = f_score_average
 
     # We do this to ensure objects are json serializable. Mostly for float32.
