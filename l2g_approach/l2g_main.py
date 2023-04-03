@@ -95,6 +95,15 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                     graph_hyper=graph_hyper,
                                     weighted=edge_type,
                                     weight_scale=True, SNR=SNR)
+    elif graph_type == 'random_rt_nested':
+        graph_hyper = {}
+
+        data = generate_random_rt_nested_parallel(num_samples=num_samples,
+                                    num_signals=num_signals,
+                                    num_nodes=graph_size,
+                                    graph_hyper=graph_hyper,
+                                    weighted=edge_type,
+                                    weight_scale=True, SNR=SNR)
     else:
         # num_samples=8064
         # num_signals=3000
@@ -349,9 +358,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     f_score_average = get_f_score_average(w_gt_batch, w_pred)
     gmse_average = get_gmse_average(w_gt_batch, w_pred)
-    mse_average = get_mse(train_loader, w_pred)
+    # mse_average = get_mse(train_loader, w_pred)
     result['gmse_average'] = gmse_average
-    result['mse_average'] = mse_average
+    # result['mse_average'] = mse_average
     result['f_score_average'] = f_score_average
 
     # We do this to ensure objects are json serializable. Mostly for float32.
@@ -396,7 +405,7 @@ if __name__ == "__main__":
     multiprocess.freeze_support()
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--graph_type', default='rt_nested')
+    parser.add_argument('--graph_type', default='random_rt_nested')
     parser.add_argument('--num_unroll', default=20, type=int)
     parser.add_argument('--num_samples', default=8064, type=int)
     parser.add_argument('--num_signals', default=3000, type=int)

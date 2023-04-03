@@ -4,6 +4,7 @@
 # TODO check if values like clustering are correct
 
 import logging
+import warnings
 
 # from utils import create_matrix_from_nx_graph
 
@@ -23,84 +24,87 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float]):
+def generate_random_rt_nested_network(N: int, K: int, d: int, alpha: float, beta: float, p_rewire: float, N_subnetworks: int, distribution_params: Tuple[float, float, float], random_clusters_distribution=False):
 
-    extra_random_clusters = False  # More or less clusters
-    extra_random_clusters_nums = False  # more or less nodes in clusters
-    if extra_random_clusters:
-        N_subnetworks += random.randint(-2, 2)
-    if N_subnetworks == 0:
-        N_subnetworks = 1
-    avg_subnetwork_N = N / N_subnetworks
-    # Select size of the network acording to connectivity limitation (23)
-    if avg_subnetwork_N > 30 and K <= 3:
-        raise Exception("For k between 2 and 3, avg_subnetwork_N should be less than 30")
-    if avg_subnetwork_N > 300 and K <= 5:
-        raise Exception("For k between 4 and 5, avg_subnetwork_N should be less than 300")
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+        # if random_clusters_distribution:
+        extra_random_clusters = False  # More or less clusters
+        extra_random_clusters_nums = False  # more or less nodes in clusters
+        if extra_random_clusters:
+            N_subnetworks += random.randint(-2, 2)
+        if N_subnetworks == 0:
+            N_subnetworks = 1
+        avg_subnetwork_N = N / N_subnetworks
+        # Select size of the network acording to connectivity limitation (23)
+        if avg_subnetwork_N > 30 and K <= 3:
+            raise Exception("For k between 2 and 3, avg_subnetwork_N should be less than 30")
+        if avg_subnetwork_N > 300 and K <= 5:
+            raise Exception("For k between 4 and 5, avg_subnetwork_N should be less than 300")
 
-    # Create subnetworks
-    left_nodes = N
-    rounded_subnet_n = round(N / N_subnetworks)
-    subnetworks = []
-    for i in range(N_subnetworks):
-        if left_nodes > rounded_subnet_n:
-            subnet_n = rounded_subnet_n
-            if extra_random_clusters_nums:
-                subnet_n += random.randint(-2, 2)
-        else:
-            subnet_n = left_nodes
-        if i == N_subnetworks-1:
-            subnet_n = left_nodes
-        # print(subnet_n)
-        left_nodes -= subnet_n
-        subnetworks.append(generate_random_cluster_small_world_network(subnet_n, K, d, alpha, beta, p_rewire))
+        # Create subnetworks
+        left_nodes = N
+        rounded_subnet_n = round(N / N_subnetworks)
+        subnetworks = []
+        for i in range(N_subnetworks):
+            if left_nodes > rounded_subnet_n:
+                subnet_n = rounded_subnet_n
+                if extra_random_clusters_nums:
+                    subnet_n += random.randint(-2, 2)
+            else:
+                subnet_n = left_nodes
+            if i == N_subnetworks-1:
+                subnet_n = left_nodes
+            # print(subnet_n)
+            left_nodes -= subnet_n
+            subnetworks.append(generate_random_cluster_small_world_network(subnet_n, K, d, alpha, beta, p_rewire))
 
 
-    # subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
+        # subnetworks = [generate_random_cluster_small_world_network(N, K, d, alpha, beta, p_rewire) for x in range(N_subnetworks)]
 
-    # Fix numbers in subnet to make them part of the network
-    last_subnet_num = 0
-    subnets_offsets = []
-    for subnet in subnetworks:
-        subnet_map = {x:x+last_subnet_num for x in range(len(subnet))}
-        nx.relabel_nodes(subnet, subnet_map,copy=False)
+        # Fix numbers in subnet to make them part of the network
+        last_subnet_num = 0
+        subnets_offsets = []
+        for subnet in subnetworks:
+            subnet_map = {x:x+last_subnet_num for x in range(len(subnet))}
+            nx.relabel_nodes(subnet, subnet_map,copy=False)
 
-        subnets_offsets.append(last_subnet_num)
-        last_subnet_num += len(subnet)
-    complete_length = sum((len(x) for x in subnetworks))
-    complete_graph: nx.Graph = nx.empty_graph(range(complete_length))
-    for subnet in subnetworks:
-        for edge in subnet.edges(data=True):
-            complete_graph.add_edge(edge[0], edge[1], group=edge[2]['group'])
+            subnets_offsets.append(last_subnet_num)
+            last_subnet_num += len(subnet)
+        complete_length = sum((len(x) for x in subnetworks))
+        complete_graph: nx.Graph = nx.empty_graph(range(complete_length))
+        for subnet in subnetworks:
+            for edge in subnet.edges(data=True):
+                complete_graph.add_edge(edge[0], edge[1], group=edge[2]['group'])
 
-    # Join subnets
-    for i, subnet in enumerate(subnetworks):
-        subnet_before = subnetworks[i-1]
-        join_subnets_at_random(complete_graph, subnet, subnet_before, K, subnets_offsets[i], subnets_offsets[i-1])
+        # Join subnets
+        for i, subnet in enumerate(subnetworks):
+            subnet_before = subnetworks[i-1]
+            join_subnets_at_random(complete_graph, subnet, subnet_before, K, subnets_offsets[i], subnets_offsets[i-1])
 
-    # Assign impedance values
-    # First we generate them
-    # TODO neither scipy nor numpy have the double pareto distribution, nor they can clip them.
-    # So we use lognormal and clip them ourselves.
-    # TODO send distribution as parameter to this function
-    impedance_values = []
-    for edge in complete_graph.edges():
-        found = False
-        while not found:
-            value_candidate = np.random.lognormal(distribution_params[0], distribution_params[1])
-            if value_candidate < distribution_params[2]:
-                impedance_values.append(value_candidate)
-                found = True
-    impedance_values.sort()
-    lattice_conn = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'lattice-conn']
-    rewire = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'rewire']
-    local = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'local']
-    random.shuffle(lattice_conn)
-    random.shuffle(rewire)
-    random.shuffle(local)
-    all_edges = lattice_conn + rewire + local
-    for edge in all_edges:
-        nx.set_edge_attributes(complete_graph, {(edge[0], edge[1]): {'value': impedance_values.pop()}})
+        # Assign impedance values
+        # First we generate them
+        # TODO neither scipy nor numpy have the double pareto distribution, nor they can clip them.
+        # So we use lognormal and clip them ourselves.
+        # TODO send distribution as parameter to this function
+        impedance_values = []
+        for edge in complete_graph.edges():
+            found = False
+            while not found:
+                value_candidate = np.random.lognormal(distribution_params[0], distribution_params[1])
+                if value_candidate < distribution_params[2]:
+                    impedance_values.append(value_candidate)
+                    found = True
+        impedance_values.sort()
+        lattice_conn = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'lattice-conn']
+        rewire = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'rewire']
+        local = [edge for edge in complete_graph.edges(data=True) if edge[2]['group'] == 'local']
+        random.shuffle(lattice_conn)
+        random.shuffle(rewire)
+        random.shuffle(local)
+        all_edges = lattice_conn + rewire + local
+        for edge in all_edges:
+            nx.set_edge_attributes(complete_graph, {(edge[0], edge[1]): {'value': impedance_values.pop()}})
     return complete_graph
 
 
@@ -357,8 +361,8 @@ def dpln_distribution(alpha: float, beta: float, nu: float, tau: float, size: np
 
 def get_matrix_from_nt_graph(G: nx.Graph):
     for edge in G.edges():
-        # TODO changed for every value to be 1
-        G[edge[0]][edge[1]]['weight'] = G[edge[0]][edge[1]]['value']
+        if edge[0] != edge[1]:  # HACK for some reason we are creating some with edges for the same node
+            G[edge[0]][edge[1]]['weight'] = G[edge[0]][edge[1]]['value']
     matrix = nx.to_numpy_matrix(G)
     # print(matrix.shape)
     # print(matrix.shape[0])

@@ -1,5 +1,6 @@
 
 import random
+import warnings
 from numpy import ndarray
 from torch.utils.data import TensorDataset, DataLoader
 from torch.utils.data import random_split
@@ -30,7 +31,6 @@ logger.setLevel(logging.INFO)
 
 #%%
 def data_loading(dir_dataset, batch_size = None, train_prop=0.8):
-
     with open(dir_dataset, 'rb') as handle:
         dataset = pickle.load(handle)
 
@@ -212,6 +212,51 @@ def _generate_WS_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, w
 
     return z, W_GT
 
+def _generate_random_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False, SNR=20):
+    rt_parameters = re_roll_nested_params()
+    G = None
+    tries = 0
+    while not G:
+        try:
+            G = generate_random_rt_nested_network(
+                num_nodes,
+                K=rt_parameters['k'],
+                d=rt_parameters['d'],
+                alpha=rt_parameters['alpha'],
+                beta=rt_parameters['beta'],
+                p_rewire=rt_parameters['p_rewire'],
+                N_subnetworks=rt_parameters['n_subnets'],
+                distribution_params=rt_parameters['distribution_params'],
+            )
+        except Exception as e:
+            logger.info(f"Exception {e} while creating graph")
+            tries+=1
+            if tries > 10:
+                logger.info(f"Rerolling params")
+                rt_parameters = re_roll_nested_params()
+                tries = 0
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+
+
+        W_GT = get_matrix_from_nt_graph(G)  # TODO this should be the one we are using
+        W_GT = rotate_matrix(W_GT)
+        np.fill_diagonal(W_GT, 0)  # HACK to avoid diagonal messed up
+        return get_z_and_w_gt(W_GT, num_nodes, num_signals, SNR=SNR)
+
+
+def re_roll_nested_params():
+    return {
+        'k':random.uniform(2,3),
+        'd':4 + random.randint(0,1),
+        'alpha':random.uniform(0,1),
+        'beta':random.uniform(0,1),
+        'p_rewire':random.uniform(0,1), 
+        'n_subnets': random.randint(4,10),
+        'distribution_params': (random.uniform(-1,-3), random.uniform(1,3), random.uniform(1,3)),
+    }
+    
+
 def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False, SNR=20):
 
 
@@ -225,8 +270,6 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
         'n_subnets': 4,
         'distribution_params': (-2.4, 2.1, 2.0),
     }
-    # print(graph_hyper)
-    # print(default_hyper)
     rt_parameters = {**default_hyper, **graph_hyper}
     # for key, value in default_hyper.items():
     #     if rt_parameters[key] != value:
@@ -257,21 +300,23 @@ def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighte
 
     # G = nx.watts_strogatz_graph(num_nodes, k = graph_hyper['k'], p = graph_hyper['p'] )
 
-    W_GT = get_matrix_from_nt_graph(G)  # TODO this should be the one we are using
-    # W_GT = W_GT * 100
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+        W_GT = get_matrix_from_nt_graph(G)  # TODO this should be the one we are using
+        # W_GT = W_GT * 100
 
-    # W_GT_2 = nx.adjacency_matrix(G).A
-    # weights = np.random.lognormal(0, 0.1, (real_n_nodes, real_n_nodes))
-    # weights = (weights + weights.T) / 2
-    # W_GT_2 = W_GT_2 * weights
+        # W_GT_2 = nx.adjacency_matrix(G).A
+        # weights = np.random.lognormal(0, 0.1, (real_n_nodes, real_n_nodes))
+        # weights = (weights + weights.T) / 2
+        # W_GT_2 = W_GT_2 * weights
 
-    W_GT = rotate_matrix(W_GT)
+        W_GT = rotate_matrix(W_GT)
 
 
-    # if weight_scale:
-    #     W_GT = W_GT * num_nodes / np.sum(W_GT)
+        # if weight_scale:
+        #     W_GT = W_GT * num_nodes / np.sum(W_GT)
 
-    return get_z_and_w_gt(W_GT, num_nodes, num_signals, SNR=SNR)
+        return get_z_and_w_gt(W_GT, num_nodes, num_signals, SNR=SNR)
 
 
 def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, SNR=20):
@@ -385,6 +430,26 @@ def generate_WS_parallel(num_samples, num_nodes, num_signals, graph_hyper, weigh
     result = {
         'z': z_multi,
         'W': W_multi
+    }
+
+    return result
+def generate_random_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale,SNR) -> dict:
+    logger.info("generating nested graphs")
+    n_cpu = 1 # multiprocess.cpu_count() - 2
+    pool = multiprocess.Pool(n_cpu)
+
+    z_multi, W_multi = zip(*pool.map(partial(_generate_random_nested_to_parallel,
+                                             num_nodes = num_nodes,
+                                             num_signals = num_signals,
+                                             graph_hyper = graph_hyper,
+                                             weighted = weighted,
+                                             weight_scale = weight_scale,
+                                             SNR=SNR),
+                                     range(num_samples)))
+
+    result = {
+        'z': z_multi,
+        'W': W_multi,
     }
 
     return result
