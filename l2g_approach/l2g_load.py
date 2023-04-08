@@ -2,6 +2,7 @@ import argparse
 from datetime import datetime
 import json
 import pickle
+import warnings
 import torch
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -19,7 +20,6 @@ def MSE_matrix(matrix_real, matrix_est):
     diff_matrix = matrix_real - matrix_est
     mse = np.trace(diff_matrix @ diff_matrix.T)
     if mse != np.real(mse):
-        print(mse)
         mse = np.real(mse)
     return mse
 
@@ -204,4 +204,6 @@ if __name__ == "__main__":
     parser.add_argument('--model_to_use_date', default="20230215014040", type=str)
     parser.add_argument('--observations_to_use_date', default="20230320011919", type=str)
     parsed_args = parser.parse_args()
-    main(parsed_args.model_to_use_date, parsed_args.observations_to_use_date)
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+        main(parsed_args.model_to_use_date, parsed_args.observations_to_use_date)
