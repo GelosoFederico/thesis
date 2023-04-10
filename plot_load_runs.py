@@ -1,5 +1,8 @@
 import csv
+from datetime import datetime
 import matplotlib.pyplot as plt
+
+time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
 
 def transform_comma_separated_to_dict(string):
     this_thing = {}
@@ -66,9 +69,11 @@ def main():
     
 
     for conj in run_groups.values():
+        if not conj or conj[0]['run']['r'] == 'None':
+            continue
+        run = conj[0]['run']
         conj = [x for x in conj if x['run']['SNR'] != "None"]
         conj.sort(key=lambda v: float(v['run']['SNR']))
-        # print(conj)
 
         SNR_values = [float(x['run']['SNR']) for x in conj if x['run']['SNR']]
         runners_values = {}
@@ -99,25 +104,33 @@ def main():
         values_to_merge[-1][1] = len(SNR_values)
         SNR_values = merge_according_to(SNR_values, values_to_merge)
         runners_values_merged = {k: merge_according_to(v, values_to_merge) for k,v in runners_values.items()}
+        runners_values_merged = {k: v for k,v in runners_values_merged.items() if not all(x is None for x in v)}
+
+        # We filter the runners to only keep some of them, so the graph isn't a mess
+        top_runners = sorted(runners_values_merged.keys(), key=lambda x: [v for v in runners_values_merged[x] if v is not None][-1])[:5]
+        runners_values_merged_filtered = {k:v for k, v in runners_values_merged.items() if k in top_runners}
 
         fig = plt.figure()
-        for val in runners_values_merged.values():
-            plt.plot(SNR_values, val)
+        models = []
+        for model, val in runners_values_merged_filtered.items():
+            plt.semilogy(SNR_values, val)
+            models.append(model)
         plt.ylabel('MSE')
         plt.xlabel('')
-        plt.ylim([0,5])
+        plt.ylim([0, 5])
+        print(run['run'])
+        run_data = [f"{k}={v}" for k, v in run['run'].items() if k != "SNR"]
+        run_text = ", ".join(run_data)
+        title = f"Run with {run_text}"
+        plt.title(title)
+        plt.grid(True, which='both')
+
+        plt.legend(models)
         # plt.axis(ylim=(0, 5))
         # fig.update_layout(yaxis2 = dict(range=[0, 5]))
 
+        plt.savefig('plots_compare_grotas_l2g/MSE_compare_run{}_at{}.png'.format(run['run']['date'], time_now))
         plt.show()
-        # plt.savefig('plots/GMSE_{}_{}.png'.format(graph_type, time_now))
-
-        # print(runners_values)
-    # for _, conj in run_groups.items():
-    #     print(conj)
-
-        
-
 
 if __name__ == "__main__":
     main()
