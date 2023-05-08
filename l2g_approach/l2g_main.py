@@ -139,7 +139,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     # num_unroll = 20
     # graph_size = 50
-    n_hid = 32
+    n_hid = 64
     n_latent = 16
     n_nodeFeat = 1
     n_graphFeat = 16
@@ -152,6 +152,11 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     net = learn2graph(num_unroll, graph_size, n_hid,
                       n_latent, n_nodeFeat, n_graphFeat).to(device)
+    
+    # TODO if using old net uncomment this
+    # to_load_net = "20230416045240"
+    # net = load_l2g_from_disk(f"saved_model\\net_{to_load_net}").to(device)
+    # run_comments.append(f"Starting with net {to_load_net}")
 
     optimizer = optim.Adam(net.parameters(), lr=lr)
     scheduler = lr_scheduler.ExponentialLR(optimizer, lr_decay)
@@ -185,6 +190,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     epoch_train_gmse = []
     epoch_train_mse = []
     epoch_val_gmse = []
+    epoch_train_unrolling_loss = []
+    epoch_train_vae_loss = []
+    epoch_train_kl_loss = []
 
     epoch = 0
     # for epoch in range(n_epochs):
@@ -250,6 +258,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
         epoch_train_gmse.append(np.mean(train_gmse))
         epoch_train_mse.append(np.mean(train_mse))
         epoch_val_gmse.append(np.mean(val_gmse))
+        epoch_train_unrolling_loss.append(np.mean(train_unrolling_loss))
+        epoch_train_vae_loss.append(np.mean(train_vae_loss))
+        epoch_train_kl_loss.append(np.mean(train_kl_loss))
 
         if epoch >= initial_epochs and epoch_val_gmse[-1] > 1.5 and epoch < 500:
             n_epochs += 1
@@ -305,18 +316,27 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     plt.savefig('plots/GMSE_{}_{}.png'.format(graph_type, time_now))
     # plt.show()
 
+    f_score_average = get_f_score_average(w_gt_batch, w_pred)
+    gmse_average = get_gmse_average(w_gt_batch, w_pred)
+    # mse_average = get_mse(train_loader, w_pred)
+
     result = {
+        'gmse_average': gmse_average,
+        'f_score_average': f_score_average,
+        'pred_gmse_mean': final_pred_loss,
+        'pred_gmse_mean_ci': final_pred_loss_ci,
         'epoch_train_gmse': epoch_train_gmse,
         'epoch_train_mse': epoch_train_mse,
         'epoch_val_gmse': epoch_val_gmse,
-        'pred_gmse_mean': final_pred_loss,
-        'pred_gmse_mean_ci': final_pred_loss_ci,
         'auc_mean': aps_auc['auc_mean'],
         'auc_ci': aps_auc['auc_ci'],
         'aps_mean': aps_auc['aps_mean'],
         'aps_ci': aps_auc['aps_ci'],
         'layerwise_gmse_mean': layer_loss_mean,
-        'layerwise_gmse_mean_ci ': layer_loss_mean_ci
+        'layerwise_gmse_mean_ci ': layer_loss_mean_ci,
+        'epoch_train_unrolling_loss': epoch_train_unrolling_loss,
+        'epoch_train_vae_loss': epoch_train_vae_loss,
+        'epoch_train_kl_loss': epoch_train_kl_loss,
     }
 
 
@@ -356,12 +376,6 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
     # plt.show()
 
-    f_score_average = get_f_score_average(w_gt_batch, w_pred)
-    gmse_average = get_gmse_average(w_gt_batch, w_pred)
-    # mse_average = get_mse(train_loader, w_pred)
-    result['gmse_average'] = gmse_average
-    # result['mse_average'] = mse_average
-    result['f_score_average'] = f_score_average
 
     # We do this to ensure objects are json serializable. Mostly for float32.
     for k, v in result.items():
@@ -413,7 +427,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_subnets', default=5, type=int)
     parser.add_argument('--p_rewire', default=0.4, type=float)
     parser.add_argument('--lr', default=1e-02, type=float)
-    parser.add_argument('--lr_decay', default=0.9999, type=float)
+    parser.add_argument('--lr_decay', default=0.99, type=float)
     parser.add_argument('--n_epochs', default=120, type=int)
     parser.add_argument('--SNR', default=20, type=int)
     parsed_args = parser.parse_args()

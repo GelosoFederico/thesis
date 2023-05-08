@@ -186,8 +186,27 @@ def main(model_to_use_date, observations_to_use_date):
     # plt.show()
 
     # TODO we are doing only one matrix, we have 64
-    MSE = MSE_matrix(mat_to_plot, pred_mat)
-    fs = F_score(mat_to_plot, pred_mat)
+    n_matrix = w_gt_batch.shape[0]
+    # print(n_matrix)
+    # print(w_gt_batch.shape)
+    MSEs = []
+    f_scores = []
+    for i in range(n_matrix):
+
+        real_mat = w_gt_batch[i,:].detach().cpu().numpy()
+        real_mat = -real_mat
+        np.fill_diagonal(real_mat, 0)
+        pred_mat = squareform(w_pred[i,:].detach().cpu().numpy())
+        MSEs.append(MSE_matrix(real_mat, pred_mat))
+        f_scores.append(F_score(real_mat, pred_mat))
+
+    MSE = np.average(MSEs)
+    fs = np.average(f_scores)
+    print(MSE)
+    # print(fs)
+    # print(MSEs[0])
+    # print(f_scores[0])
+    # fs = F_score(mat_to_plot, pred_mat)
     # MSE_states_total = MSE_states(observations, B, sigma_theta, sigma_est**2, states)
     test_result = {
         "net": model_to_use_date,
