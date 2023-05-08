@@ -8,6 +8,7 @@ def main():
     file_path = os.path.realpath(__file__)
     folder_path = Path(file_path).parent
     export_file = 'runs_data_compare.csv'
+    export_file_coalesce = 'runs_data_compare_coalesce.csv'
 
     files = os.listdir("runs")
     files = [os.path.join(folder_path, "runs", file) for file in files]
@@ -47,7 +48,7 @@ def main():
     files = [os.path.join(folder_path, "l2g_approach", "plots", file) for file in l2g_loads]
 
     for file in files:
-        if "run_results_data_rt_nested_" in file or "run_results_data_ieee_" in file or "run_results_data_random_rt_" in file:
+        if "run_results_data" in file:
             try:
                 with open(file) as fp:
                     json_data = json.load(fp)
@@ -120,12 +121,53 @@ def main():
                 model_info_full = [f"{name}={data}" for name, data in zip(model_info_titles, model_info_data)]
                 model_info = ",".join(model_info_full)
                 method = f"l2g, model={run['l2g_model']}, model_info=({model_info})"
+                if float(run["MSE"]) > 20 and model_name not in models:  # Filter so I don't get a billion results
+                    continue
             if model_name not in models:
                 models[model_name] = [""] * len(runs_by_observations)
             models[model_name][i] = run['MSE']
             models_headers[model_name] = method
         i+=1
     with open(export_file, 'w') as fp:
+        fp.write(";" + ";".join(observations_titles) + '\n')
+        for model_name, values in models.items():
+            ending = ";".join([str(v) for v in values])
+            fp.write(f"{models_headers[model_name]};{ending}\n")
+
+    runs_coalesced = {}
+    observations_titles = []
+    models = {}
+    models_headers = {}
+    i = 0
+    runs_sorted_by_date = [(date, runs) for date, runs in runs_by_observations.items()]
+    runs_sorted_by_date.sort(key=lambda x: x[0], reverse=True)
+    for date, runs in runs_sorted_by_date:
+        run_name = f"SNR={runs[0]['SNR']}, N={runs[0]['N']}, r={runs[0].get('random')}"
+        if run_name not in runs_coalesced:
+            runs_coalesced[run_name] = []
+        runs_coalesced[run_name].extend(runs)
+    for name, runs in runs_coalesced.items():
+        observations_titles.append(name)
+        for run in runs:
+            if run['method'] == "grotas":
+                model_name = "grotas"
+                method = f"grotas"
+            else:
+                model_name = run['l2g_model']
+                model_info_data = get_array_w_relevant_data(run['full_l2g_data'])
+                model_info_titles = get_r_data_names()
+                model_info_full = [f"{name}={data}" for name, data in zip(model_info_titles, model_info_data)]
+                model_info = ",".join(model_info_full)
+                method = f"l2g, model={run['l2g_model']}, model_info=({model_info})"
+                if float(run["MSE"]) > 20:  # Filter so I don't get a billion results
+                    continue
+            if model_name not in models:
+                models[model_name] = [""] * len(runs_coalesced)
+            if models[model_name][i] == "":
+                models[model_name][i] = run['MSE']
+            models_headers[model_name] = method
+        i+=1
+    with open(export_file_coalesce, 'w') as fp:
         fp.write(";" + ";".join(observations_titles) + '\n')
         for model_name, values in models.items():
             ending = ";".join([str(v) for v in values])
