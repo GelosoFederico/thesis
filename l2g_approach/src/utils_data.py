@@ -255,7 +255,58 @@ def re_roll_nested_params():
         'n_subnets': random.randint(4,10),
         'distribution_params': (random.uniform(-1,-3), random.uniform(1,3), random.uniform(1,3)),
     }
-    
+
+def _generate_nested_to_parallel_with_signals_as_samples(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False, SNR=20):
+    # TODO change this and the weights with our generator
+    default_hyper = {
+        'k':2,
+        'd':4,
+        'alpha':0.5,
+        'beta':0.4,
+        'p_rewire':0.8, 
+        'n_subnets': 4,
+        'distribution_params': (-2.4, 2.1, 2.0),
+    }
+    rt_parameters = {**default_hyper, **graph_hyper}
+    G = None
+    while not G:
+        try:
+            G = generate_random_rt_nested_network(
+                num_nodes,
+                K=rt_parameters['k'],
+                d=rt_parameters['d'],
+                alpha=rt_parameters['alpha'],
+                beta=rt_parameters['beta'],
+                p_rewire=rt_parameters['p_rewire'],
+                N_subnetworks=rt_parameters['n_subnets'],
+                distribution_params=rt_parameters['distribution_params'],
+            )
+        except Exception as e:
+            logger.info(f"Exception {e} while creating graph")
+
+    # TODO take out this comment or use it. It is the generation of samples with the inverse
+    # with warnings.catch_warnings(): # This is for some future wanings
+    #     warnings.filterwarnings("ignore")
+    #     W_GT = get_matrix_from_nt_graph(G)  # TODO this should be the one we are using
+
+    #     n_samples = round(num_signals)
+    #     L_GT = np.diag(W_GT @ np.ones(num_nodes)) - W_GT
+    #     W_GT = scipy.sparse.csr_matrix(W_GT)
+    #     inverse = np.linalg.inv(L_GT + (1e-05) * np.eye(num_nodes))
+    #     samples = np.random.multivariate_normal(np.zeros(num_nodes), inverse, n_samples)
+
+    #     return get_distance_halfvector(samples), W_GT
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+        W_GT = get_matrix_from_nt_graph(G)  # TODO this should be the one we are using
+
+        n_samples = round(num_signals)
+        L_GT = - (np.diag(W_GT @ np.ones([num_nodes, num_nodes])) - W_GT)
+        W_GT = scipy.sparse.csr_matrix(W_GT)
+        inverse = np.linalg.inv(L_GT + (1e-05) * np.eye(num_nodes))
+        samples = np.random.multivariate_normal(np.zeros(num_nodes), L_GT @ L_GT.T, n_samples)
+
+        return get_distance_halfvector((inverse @ samples.T).T), W_GT
 
 def _generate_nested_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False, SNR=20):
 
@@ -365,19 +416,19 @@ def get_z_and_w_gt(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigm
 
     return z, W_GT
 
-def get_z_and_w_gt_for_ieee(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, SNR=20):
-    n_samples = round(num_signals)
-    sigma_noise = calculate_SNR_grotas(W_GT, 1, SNR)
-    states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
-    samples = W_GT @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
-    z = get_distance_halfvector(samples.T)
-    W_GT = scipy.sparse.csr_matrix(W_GT)
+# def get_z_and_w_gt_for_ieee(W_GT: ndarray, num_nodes: int, num_signals: int, A=None, sigma_state=1, SNR=20):
+#     n_samples = round(num_signals)
+#     sigma_noise = calculate_SNR_grotas(W_GT, 1, SNR)
+#     states = np.random.default_rng().normal(0, sigma_state, (num_nodes, n_samples))
+#     samples = W_GT @ states + np.random.default_rng().normal(0, sigma_noise, (num_nodes, n_samples))
+#     z = get_distance_halfvector(samples.T)
+#     W_GT = scipy.sparse.csr_matrix(W_GT)
 
-    return z, W_GT
+#     return z, W_GT
 
 
-def get_z_from_samples(samples):
-    return get_distance_halfvector(samples.T)
+# def get_z_from_samples(samples):
+#     return get_distance_halfvector(samples.T)
 
 def get_U_matrix(M):
     return np.concatenate((np.array([-np.ones(M-1)]), np.eye(M-1)))
@@ -393,24 +444,28 @@ def calculate_SNR_grotas(B, c, SNR):
                            B_tilde) / (10**(SNR/10.0)))
 
 
-def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
-    L_GT = np.diag(W_GT.A @ np.ones(num_nodes)) - W_GT.A
-    W_GT = scipy.sparse.csr_matrix(W_GT)
-    cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
-    z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))
-    return z, W_GT
+# def get_z_and_w_gt_ndarray(W_GT: ndarray, num_nodes: int, num_signals: int):
+#     L_GT = np.diag(W_GT.A @ np.ones(num_nodes)) - W_GT.A
+#     W_GT = scipy.sparse.csr_matrix(W_GT)
+#     cov = np.linalg.inv(L_GT + (1e-04) * np.eye(num_nodes))
+#     z = get_distance_halfvector(np.random.multivariate_normal(np.zeros(num_nodes), cov, num_signals))
+#     return z, W_GT
 
 
-def _generate_57_ieee_to_parallel(num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
+def _generate_57_ieee_to_parallel(i, num_nodes, num_signals, graph_hyper, weighted, weight_scale = False):
     matrix, a = IEEE57_b_matrix()
-    matrix = rotate_matrix(matrix)
+    # matrix = rotate_matrix(matrix)
     # TODO add some variations to matrixes, like some error
-    add_error_matrix_symetric(matrix)
-    a = get_a_from_matrix(matrix)
-    np.fill_diagonal(matrix, 0)
-    matrix = -matrix
-    z, W_GT = get_z_and_w_gt_for_ieee(matrix, matrix.shape[0], num_signals, a)
-    print("finished" )
+    # add_error_matrix_symetric(matrix)
+    # a = get_a_from_matrix(matrix)
+    # np.fill_diagonal(matrix, 0)
+    with warnings.catch_warnings(): # This is for some future wanings
+        warnings.filterwarnings("ignore")
+
+        print("finishing")
+        np.fill_diagonal(matrix, 0)
+        matrix = -matrix
+        return get_z_and_w_gt(matrix, num_nodes, num_signals, SNR=60)
     return z, W_GT
 
 
@@ -473,9 +528,29 @@ def generate_rt_nested_parallel(num_samples, num_nodes, num_signals, graph_hyper
     }
 
     return result
+def generate_nested_to_parallel_with_signals_as_samples(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale,SNR) -> dict:
+    logger.info("generating nested graphs with signals as samples")
+    n_cpu = 1 # multiprocess.cpu_count() - 2
+    pool = multiprocess.Pool(n_cpu)
+
+    z_multi, W_multi = zip(*pool.map(partial(_generate_nested_to_parallel_with_signals_as_samples,
+                                             num_nodes = num_nodes,
+                                             num_signals = num_signals,
+                                             graph_hyper = graph_hyper,
+                                             weighted = weighted,
+                                             weight_scale = weight_scale,
+                                             SNR=SNR),
+                                     range(num_samples)))
+
+    result = {
+        'z': z_multi,
+        'W': W_multi,
+    }
+
+    return result
 
 def generate_57_ieee_parallel(num_samples, num_nodes, num_signals, graph_hyper, weighted, weight_scale) -> dict:
-    logger.info("generating nested graphs")
+    logger.info("generating ieee57 graphs")
     n_cpu = 1 # multiprocess.cpu_count() - 2
     pool = multiprocess.Pool(n_cpu)
 

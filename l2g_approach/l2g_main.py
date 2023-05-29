@@ -95,6 +95,19 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                     graph_hyper=graph_hyper,
                                     weighted=edge_type,
                                     weight_scale=True, SNR=SNR)
+    elif graph_type == 'rt_nested_w_signals':
+        graph_hyper = {
+            'k': k,
+            'n_subnets': n_subnets,
+            'p_rewire': p_rewire
+        }
+
+        data = generate_nested_to_parallel_with_signals_as_samples(num_samples=num_samples,
+                                    num_signals=num_signals,
+                                    num_nodes=graph_size,
+                                    graph_hyper=graph_hyper,
+                                    weighted=edge_type,
+                                    weight_scale=True, SNR=SNR)
     elif graph_type == 'random_rt_nested':
         graph_hyper = {}
 
@@ -104,7 +117,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                     graph_hyper=graph_hyper,
                                     weighted=edge_type,
                                     weight_scale=True, SNR=SNR)
-    else:
+    elif graph_type == 'IEEE57':
         # num_samples=8064
         # num_signals=3000
         graph_hyper = {}
@@ -114,6 +127,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                     graph_hyper={},
                                     weighted=edge_type,
                                     weight_scale=True)
+    else:
+        logger.info("No graph type has been selected!")
+        return
 
     if data['W'][0].shape[0] != graph_size:
         logger.info(f"Graphs created are of size {data['W'][0].shape[0]}. We expected {graph_size}, but we will use that")
@@ -420,6 +436,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--graph_type', default='random_rt_nested')
+    # parser.add_argument('--graph_type', default='rt_nested_w_signals')
+    # parser.add_argument('--graph_type', default='IEEE57')
     parser.add_argument('--num_unroll', default=20, type=int)
     parser.add_argument('--num_samples', default=8064, type=int)
     parser.add_argument('--num_signals', default=3000, type=int)
