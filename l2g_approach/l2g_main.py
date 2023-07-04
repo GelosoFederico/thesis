@@ -38,7 +38,7 @@ def MSE_matrix(matrix_real, matrix_est):
     return mse
 
 
-def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR):
+def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR, data_date):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     run_comments = []
@@ -47,7 +47,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     # graph_type = 'WS'
     # graph_type = 'rt_nested'
     # graph_type = 'ieee57'
-    graph_size = 57 # default 50
+    graph_size = 57  # default 50
     # num_unroll = 20
 
     logging.basicConfig(filename='logs/L2G_{}_m{}_x{}.log'.format(graph_type, graph_size, num_unroll),
@@ -64,88 +64,109 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     # generate synthetic WS graphs
     edge_type = 'lognormal'
+    batch_size = 32
 
-    if graph_type == 'WS':
-        graph_hyper = {'k': k, # default k=5
-                    'p': p_rewire}
-        # num_samples = 16064 # default 8064
-        # num_signals = 3000 # default 3000
+    if not data_date:
+        if graph_type == 'WS':
+            graph_hyper = {'k': k, # default k=5
+                        'p': p_rewire}
+            # num_samples = 16064 # default 8064
+            # num_signals = 3000 # default 3000
 
-        data = generate_WS_parallel(num_samples=num_samples,
-                                    num_signals=num_signals, # 3000 default
-                                    num_nodes=graph_size,
-                                    graph_hyper=graph_hyper,
-                                    weighted=edge_type,
-                                    weight_scale=True)
-    elif graph_type == 'rt_nested':
-        # TODO get true hyperparams
-        graph_hyper = {
-            'k': k,
-            'n_subnets': n_subnets,
-            'p_rewire': p_rewire
+            data = generate_WS_parallel(num_samples=num_samples,
+                                        num_signals=num_signals, # 3000 default
+                                        num_nodes=graph_size,
+                                        graph_hyper=graph_hyper,
+                                        weighted=edge_type,
+                                        weight_scale=True)
+        elif graph_type == 'rt_nested':
+            # TODO get true hyperparams
+            graph_hyper = {
+                'k': k,
+                'n_subnets': n_subnets,
+                'p_rewire': p_rewire
+            }
+
+            # num_samples=8064
+            # num_signals=3000
+            # N = int(graph_size / graph_hyper['k'])
+            # print(N)
+            data = generate_rt_nested_parallel(num_samples=num_samples,
+                                        num_signals=num_signals,
+                                        num_nodes=graph_size,
+                                        graph_hyper=graph_hyper,
+                                        weighted=edge_type,
+                                        weight_scale=True, SNR=SNR)
+        elif graph_type == 'rt_nested_w_signals':
+            graph_hyper = {
+                'k': k,
+                'n_subnets': n_subnets,
+                'p_rewire': p_rewire
+            }
+
+            data = generate_nested_to_parallel_with_signals_as_samples(num_samples=num_samples,
+                                        num_signals=num_signals,
+                                        num_nodes=graph_size,
+                                        graph_hyper=graph_hyper,
+                                        weighted=edge_type,
+                                        weight_scale=True, SNR=SNR)
+        elif graph_type == 'random_rt_nested':
+            graph_hyper = {}
+
+            data = generate_random_rt_nested_parallel(num_samples=num_samples,
+                                        num_signals=num_signals,
+                                        num_nodes=graph_size,
+                                        graph_hyper=graph_hyper,
+                                        weighted=edge_type,
+                                        weight_scale=True, SNR=SNR)
+        elif graph_type == 'IEEE57':
+            # num_samples=8064
+            # num_signals=3000
+            graph_hyper = {}
+            data = generate_57_ieee_parallel(num_samples=num_samples,
+                                        num_signals=num_signals,
+                                        num_nodes=graph_size,
+                                        graph_hyper={},
+                                        weighted=edge_type,
+                                        weight_scale=True)
+        else:
+            logger.info("No graph type has been selected!")
+            return
+        
+        if data['W'][0].shape[0] != graph_size:
+            logger.info(f"Graphs created are of size {data['W'][0].shape[0]}. We expected {graph_size}, but we will use that")
+            graph_size = data['W'][0].shape[0]
+
+        with open('data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now), 'wb') as handle:
+            # del data['samples']
+            # del data['states']
+            pickle.dump(data, handle, protocol=4)
+        data_dir = 'data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now)
+        data_json = {
+            "graph_type": graph_type,
+            "graph_hyper": graph_hyper,
+            "num_samples": num_samples,
+            "num_signals": num_signals,
+            "graph_size": graph_size,
+            "SNR": SNR,
         }
+        with open(f"data/data_{time_now}.json",'w') as file:
+            json.dump(data_json, file, indent=4)
 
-        # num_samples=8064
-        # num_signals=3000
-        # N = int(graph_size / graph_hyper['k'])
-        # print(N)
-        data = generate_rt_nested_parallel(num_samples=num_samples,
-                                    num_signals=num_signals,
-                                    num_nodes=graph_size,
-                                    graph_hyper=graph_hyper,
-                                    weighted=edge_type,
-                                    weight_scale=True, SNR=SNR)
-    elif graph_type == 'rt_nested_w_signals':
-        graph_hyper = {
-            'k': k,
-            'n_subnets': n_subnets,
-            'p_rewire': p_rewire
-        }
-
-        data = generate_nested_to_parallel_with_signals_as_samples(num_samples=num_samples,
-                                    num_signals=num_signals,
-                                    num_nodes=graph_size,
-                                    graph_hyper=graph_hyper,
-                                    weighted=edge_type,
-                                    weight_scale=True, SNR=SNR)
-    elif graph_type == 'random_rt_nested':
-        graph_hyper = {}
-
-        data = generate_random_rt_nested_parallel(num_samples=num_samples,
-                                    num_signals=num_signals,
-                                    num_nodes=graph_size,
-                                    graph_hyper=graph_hyper,
-                                    weighted=edge_type,
-                                    weight_scale=True, SNR=SNR)
-    elif graph_type == 'IEEE57':
-        # num_samples=8064
-        # num_signals=3000
-        graph_hyper = {}
-        data = generate_57_ieee_parallel(num_samples=num_samples,
-                                    num_signals=num_signals,
-                                    num_nodes=graph_size,
-                                    graph_hyper={},
-                                    weighted=edge_type,
-                                    weight_scale=True)
     else:
-        logger.info("No graph type has been selected!")
-        return
+        with open(f"data/data_{data_date}.json") as file:
+            data_data = json.load(fp=file)
+        
+        data_dir = 'data/dataset_{}_{}nodes_{}_{}.pickle'.format(data_data["graph_type"], data_data["graph_size"], data_data["graph_type"], data_date)
+        graph_hyper = data_data["graph_hyper"]
+        num_samples = data_data["num_samples"]
+        num_signals = data_data["num_signals"]
+        SNR = data_data["SNR"]
 
-    if data['W'][0].shape[0] != graph_size:
-        logger.info(f"Graphs created are of size {data['W'][0].shape[0]}. We expected {graph_size}, but we will use that")
-        graph_size = data['W'][0].shape[0]
 
-    with open('data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now), 'wb') as handle:
-        # del data['samples']
-        # del data['states']
-        pickle.dump(data, handle, protocol=4)
 
 
     # load data
-
-    batch_size = 32
-
-    data_dir = 'data/dataset_{}_{}nodes_{}_{}.pickle'.format(graph_type, graph_size, graph_type, time_now)
     train_loader, val_loader, test_loader = data_loading(data_dir, batch_size=batch_size)
 
 
@@ -448,6 +469,7 @@ if __name__ == "__main__":
     parser.add_argument('--lr_decay', default=0.99, type=float)
     parser.add_argument('--n_epochs', default=120, type=int)
     parser.add_argument('--SNR', default=20, type=int)
+    parser.add_argument('--data_date', default=None)
     parsed_args = parser.parse_args()
 
     main(
@@ -462,4 +484,5 @@ if __name__ == "__main__":
         parsed_args.lr_decay,
         parsed_args.n_epochs,
         parsed_args.SNR,
+        parsed_args.data_date,
     )
