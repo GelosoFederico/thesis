@@ -232,6 +232,19 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     epoch_train_kl_loss = []
 
     epoch = 0
+
+    # This is for validating each epoch visually
+    for z, w_gt_batch in test_loader:
+        z_all_test = z.to(device)
+        w_gt_batch_all_test = w_gt_batch.to(device)
+
+    idx = 20
+    plt.figure()
+    sns.heatmap(squareform(w_gt_batch_all_test[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
+    plt.title('groundtruth')
+    plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
+    plt.close()
+
     # for epoch in range(n_epochs):
     while epoch < n_epochs:
 
@@ -291,6 +304,18 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                                                                       np.mean(train_vae_loss),
                                                                                       np.mean(train_kl_loss)))
         logging.info("== gmse <train: {:04.4f} | val: {:04.4f}> ".format(np.mean(train_gmse), np.mean(val_gmse)))
+
+
+        # Plots for validating each epoch visually
+        w_list_test = net.validation(z_all_test, threshold=1e-04)
+        w_pred_test = torch.clamp(w_list_test[:, num_unroll - 1, :], min=0)
+        # We do a test each epoch so we can plot it
+        idx = 20
+        plt.figure()
+        sns.heatmap(squareform(w_pred_test[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
+        plt.title('prediction')
+        plt.savefig('plots/prediction_{}_{}_epoch{}.png'.format(graph_type, time_now, epoch))
+        plt.close()
 
         epoch_train_gmse.append(np.mean(train_gmse))
         epoch_train_mse.append(np.mean(train_mse))
