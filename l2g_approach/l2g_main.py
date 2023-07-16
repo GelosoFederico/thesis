@@ -38,7 +38,7 @@ def MSE_matrix(matrix_real, matrix_est):
     return mse
 
 
-def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR, data_date):
+def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewire, lr, lr_decay, n_epochs, SNR, data_date, n_hid):
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(device)
     run_comments = []
@@ -176,7 +176,6 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
 
     # num_unroll = 20
     # graph_size = 50
-    n_hid = 64
     n_latent = 16
     n_nodeFeat = 1
     n_graphFeat = 16
@@ -495,6 +494,7 @@ if __name__ == "__main__":
     parser.add_argument('--n_epochs', default=120, type=int)
     parser.add_argument('--SNR', default=20, type=int)
     parser.add_argument('--data_date', default=None)
+    parser.add_argument('--n_hid', default=64, type=int)
     parsed_args = parser.parse_args()
 
     main(
@@ -510,4 +510,5 @@ if __name__ == "__main__":
         parsed_args.n_epochs,
         parsed_args.SNR,
         parsed_args.data_date,
+        parsed_args.n_hid,
     )
