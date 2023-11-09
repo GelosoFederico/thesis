@@ -206,6 +206,11 @@ class learn2graph(nn.Module):
             y2 = v + self.gn[i] * torch.matmul(w, D.T)
 
             p1 = F.leaky_relu(y1)
+            # if False: #  if i > int(self.layers-2):
+            #     p1, vae_loss, vae_kl, vae_latent = self.vae.forward(y1, w_gt_batch, threshold, kl_hyper)
+            # else:
+            #     p1 = F.leaky_relu(y1)
+
             p2 = self.prox_log_barrier(y2, self.gn[i], self.alpha[i])
 
             q1 = p1 - self.gn[i] * (2 * self.beta[i] * p1 + 2 * z + torch.matmul(p2, D))
@@ -220,7 +225,10 @@ class learn2graph(nn.Module):
         y1 = w - self.gn[i] * (2 * self.beta[i] * w + 2 * z + torch.matmul(v, D))
         y2 = v + self.gn[i] * torch.matmul(w, D.T)
 
+        # p1, vae_loss, vae_kl, vae_latent = self.vae.forward(-y1, w_gt_batch, threshold, kl_hyper)
+        # p1 = -p1
         p1, vae_loss, vae_kl, vae_latent = self.vae.forward(y1, w_gt_batch, threshold, kl_hyper)
+        # p1 = F.leaky_relu(y1)
         p2 = self.prox_log_barrier(y2, self.gn[i], self.alpha[i])
 
         q1 = p1 - self.gn[i] * (2 * self.beta[i] * p1 + 2 * z + torch.matmul(p2, D))
@@ -231,7 +239,7 @@ class learn2graph(nn.Module):
 
         w_list[:, i, :] = w
 
-        return w_list, vae_loss, vae_kl, vae_latent
+        return w_list, vae_loss, vae_kl, vae_latent, p1, y1
 
     def validation(self, z, threshold=1e-04):
         batch_size, l = z.size()
@@ -264,6 +272,7 @@ class learn2graph(nn.Module):
         y2 = v + self.gn[i] * torch.matmul(w, D.T)
 
         p1, _ = self.vae.refine(y1, threshold)
+        # p1 = F.leaky_relu(y1)
         p2 = self.prox_log_barrier(y2, self.gn[i], self.alpha[i])
 
         q1 = p1 - self.gn[i] * (2 * self.beta[i] * p1 + 2 * z + torch.matmul(p2, D))

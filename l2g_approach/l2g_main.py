@@ -5,6 +5,7 @@ with some changes to go with our rt nested graphs
 import argparse
 import json
 from datetime import datetime
+import os
 from numpy import average
 import torch
 import torch.optim as optim
@@ -22,6 +23,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.spatial.distance import squareform
 
+
+# data_comment = "Random rotation"
+# data_comment = "1e-3 for non inversible"
+data_comment = None
 
 def get_mse(batch, prediction):
     num_batch = batch.shape[0]
@@ -44,6 +49,9 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     run_comments = []
 
     time_now = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    os.makedirs(f"plots/{time_now}/vaes")
+    os.makedirs(f"plots/{time_now}/groundcheck")
+    os.makedirs(f"plots/{time_now}/epochs")
     # graph_type = 'WS'
     # graph_type = 'rt_nested'
     # graph_type = 'ieee57'
@@ -110,6 +118,19 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
                                         graph_hyper=graph_hyper,
                                         weighted=edge_type,
                                         weight_scale=True, SNR=SNR)
+        # elif graph_type == 'not_quite_rt_nested_w_signals':
+        #     graph_hyper = {
+        #         'k': k,
+        #         'n_subnets': n_subnets,
+        #         'p_rewire': p_rewire
+        #     }
+
+        #     data = generate_not_quite_nested_to_parallel_with_signals_as_samples(num_samples=num_samples,
+        #                                 num_signals=num_signals,
+        #                                 num_nodes=graph_size,
+        #                                 graph_hyper=graph_hyper,
+        #                                 weighted=edge_type,
+        #                                 weight_scale=True, SNR=SNR)
         elif graph_type == 'random_rt_nested':
             graph_hyper = {}
 
@@ -150,6 +171,8 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
             "graph_size": graph_size,
             "SNR": SNR,
         }
+        if data_comment:
+            data_json["comment"] = data_comment
         with open(f"data/data_{time_now}.json",'w') as file:
             json.dump(data_json, file, indent=4)
 
@@ -244,6 +267,21 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
     plt.savefig('plots/groundtruth_{}_{}.png'.format(graph_type, time_now))
     plt.close()
 
+    # This is for validating train matrixes
+    train_n = 0
+    ids_test = [1,11,21,31]
+    for _, w_train_check in train_loader:
+        w_train_check_all_test = w_train_check.to(device)
+        for i in ids_test:
+            plt.figure()
+            sns.heatmap(squareform(w_train_check_all_test[i,:].detach().cpu().numpy()), cmap = 'pink_r')
+            plt.title('groundtruth')
+            plt.savefig(f'plots/{time_now}/groundcheck/traingroundtruth_{train_n}_{i}_{graph_type}_{time_now}.png')
+            plt.close()
+        train_n += 1
+        if train_n == 2:
+            break
+
     # for epoch in range(n_epochs):
     while epoch < n_epochs:
 
@@ -260,7 +298,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
             this_batch_size = w_gt_batch.size()[0]
 
             optimizer.zero_grad()
-            w_list, vae_loss, vae_kl, _ = net.forward(z, w_gt_batch, threshold=1e-04, kl_hyper=1)  # default threshold 1e-04
+            w_list, vae_loss, vae_kl, _, out_vae, in_vae = net.forward(z, w_gt_batch, threshold=1e-04, kl_hyper=1)  # default threshold 1e-04
 
             unrolling_loss = torch.mean(
                 torch.stack([acc_loss(w_list[i, :, :], w_gt_batch[i, :], dn=0.9) for i in range(batch_size)])
@@ -279,6 +317,20 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
             train_unrolling_loss.append(unrolling_loss.item())
             train_vae_loss.append(vae_loss.item())
             train_kl_loss.append(vae_kl.item())
+
+
+        for i in ids_test:
+            plt.figure()
+            sns.heatmap(squareform(out_vae[i,:].detach().cpu().numpy()), cmap = 'pink_r')
+            plt.title('out vae')
+            plt.savefig(f"plots/{time_now}/vaes/{graph_type}_{time_now}_{epoch}_{i}_out_vae.png")
+            plt.close()
+            plt.figure()
+            sns.heatmap(squareform(in_vae[i,:].detach().cpu().numpy()), cmap = 'pink_r')
+            plt.title('in vae')
+            plt.savefig(f'plots/{time_now}/vaes/{graph_type}_{time_now}_{epoch}_{i}_in_vae.png')
+            plt.close()
+
 
         scheduler.step()
 
@@ -313,7 +365,7 @@ def main(graph_type, num_unroll, num_samples, num_signals, k, n_subnets, p_rewir
         plt.figure()
         sns.heatmap(squareform(w_pred_test[idx,:].detach().cpu().numpy()), cmap = 'pink_r')
         plt.title('prediction')
-        plt.savefig('plots/prediction_{}_{}_epoch{}.png'.format(graph_type, time_now, epoch))
+        plt.savefig('plots/{}/epochs/prediction_{}_{}_epoch{}.png'.format(time_now, graph_type, time_now, epoch))
         plt.close()
 
         epoch_train_gmse.append(np.mean(train_gmse))
@@ -498,17 +550,17 @@ if __name__ == "__main__":
     parsed_args = parser.parse_args()
 
     main(
-        parsed_args.graph_type,
-        parsed_args.num_unroll,
-        parsed_args.num_samples,
-        parsed_args.num_signals,
-        parsed_args.k,
-        parsed_args.n_subnets,
-        parsed_args.p_rewire,
-        parsed_args.lr,
-        parsed_args.lr_decay,
-        parsed_args.n_epochs,
-        parsed_args.SNR,
-        parsed_args.data_date,
-        parsed_args.n_hid,
+        graph_type=parsed_args.graph_type, 
+        num_unroll=parsed_args.num_unroll, 
+        num_samples=parsed_args.num_samples, 
+        num_signals=parsed_args.num_signals, 
+        k=parsed_args.k, 
+        n_subnets=parsed_args.n_subnets, 
+        p_rewire=parsed_args.p_rewire, 
+        lr=parsed_args.lr, 
+        lr_decay=parsed_args.lr_decay, 
+        n_epochs=parsed_args.n_epochs, 
+        SNR=parsed_args.SNR, 
+        data_date=parsed_args.data_date, 
+        n_hid=parsed_args.n_hid
     )
